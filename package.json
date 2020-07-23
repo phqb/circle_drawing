@@ -1,0 +1,21 @@
+{
+  "name": "circles_drawing",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build.index": "npx browserify src/index.js -o dist/index.bundle.js",
+    "build.edge-detection": "npx browserify src/edge-detection.js -o dist/edge-detection.bundle.js",
+    "build.all": "npm run build.index && npm run build.edge-detection"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "complex.js": "^2.0.11",
+    "ndarray": "^1.0.19",
+    "ndarray-ops": "^1.2.2"
+  },
+  "devDependencies": {
+    "browserify": "^16.5.1"
+  }
+}
