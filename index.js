@@ -32,79 +32,24 @@ function freqShift(re, im, shift) {
   }
 }
 
-function draw(wrapper, canvas, points, t, duration, zero, pos, neg) {
-  const ctx = canvas.getContext('2d');
-  const [paddingX, paddingY] = [50, 50];
-  const rect = wrapper.getBoundingClientRect();
-  canvas.width = rect.width;
-  canvas.height = rect.height;
+function fourierCycles(xs, ys) {
+  const n = xs.length;
+  const shift = n >> 4;
 
-  const minSide = Math.min(rect.width, rect.height);
-  const translationX = (rect.height < rect.width) * (rect.width - minSide) / 2;
-  const translationY = (rect.width < rect.height) * (rect.height - minSide) / 2;
+  freqShift(xs, ys, -shift);
+  transform(xs, ys);
 
-  const scaling = [minSide - paddingX * 2, minSide - paddingY * 2];
-  const translation = [translationX + paddingX, translationY + paddingY];
-
-  const transformer = (p) => {
-    return [p[0] * scaling[0] + translation[0], p[1] * scaling[1] + translation[1]];
+  const zs = [];
+  for (let i = 0; i < n; i += 1) {
+    const z = [xs[i], ys[i]];
+    zs.push(div(z, n));
   }
 
-  let r = zero;
-  let p = transformer(r);
+  const zero = zs[shift];
+  const pos = zs.slice(shift + 1);
+  const neg = zs.slice(0, shift).reverse();
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.moveTo(p[0], p[1]);
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-
-  const n = Math.min(pos.length, neg.length);
-  for (let c = 1; c <= n; c += 1) {
-    let from = transformer(r);
-    r = add(r, mul(pos[c - 1], exp([0, c * 2 * Math.PI * t / duration])));
-    let to = transformer(r);
-
-    ctx.beginPath();
-    ctx.moveTo(from[0], from[1]);
-    ctx.lineTo(to[0], to[1]);
-    ctx.closePath();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(from[0], from[1], abs(sub(to, from)), 0, 2 * Math.PI);
-    ctx.closePath();
-    ctx.stroke();
-
-    from = to;
-    r = add(r, mul(neg[c - 1], exp([0, -c * 2 * Math.PI * t / duration])));
-    to = transformer(r);
-
-    ctx.beginPath();
-    ctx.moveTo(from[0], from[1]);
-    ctx.lineTo(to[0], to[1]);
-    ctx.closePath();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(from[0], from[1], abs(sub(to, from)), 0, 2 * Math.PI);
-    ctx.closePath();
-    ctx.stroke();
-  }
-
-  let z = mul(zero, exp([0, 0]));
-  for (let c = 1; c <= n; c += 1) {
-    z = add(z, mul(pos[c - 1], exp([0, c * 2 * Math.PI * t / duration])));
-    z = add(z, mul(neg[c - 1], exp([0, -c * 2 * Math.PI * t / duration])));
-  }
-  points.push(transformer(z));
-
-  ctx.strokeStyle = 'rgb(0, 0, 0)';
-
-  for (let i = 1, n = points.length; i < n; i += 1) {
-    ctx.beginPath();
-    ctx.moveTo(points[i - 1][0], points[i - 1][1]);
-    ctx.lineTo(points[i][0], points[i][1]);
-    ctx.stroke();
-  }
+  return [zero, pos, neg];
 }
 
 function makePoints(points, length) {
@@ -138,53 +83,158 @@ function makeStarPoints(length) {
   return makePoints([[0, 0], [0.5, 1], [1, 0], [0, 0.6], [1, 0.6]], length);
 }
 
-function startDraw(wrapper, canvas, xs, ys) {
-  const n = xs.length;
-  const shift = n >> 4;
-  console.log(n);
-  const duration = 20 * n;
+function makeCabbitPoints() {
+  const width = 720;
+  const height = 1280;
+  const maxSide = Math.max(width, height);
+  const padX = (width < height) * (maxSide - width) / 2;
+  const padY = (height < width) * (maxSide - height) / 2;
+  return [cabbitPoints.map((p) => (p[0] + padX) / maxSide), cabbitPoints.map((p) => (p[1] + padY) / maxSide)];
+}
 
-  freqShift(xs, ys, -shift);
-  transform(xs, ys);
+function calcTransformer(wrapper) {
+  const [paddingX, paddingY] = [50, 50];
+  const rect = wrapper.getBoundingClientRect();
 
-  const zs = [];
+  const minSide = Math.min(rect.width, rect.height);
+  const translationX = (rect.height < rect.width) * (rect.width - minSide) / 2;
+  const translationY = (rect.width < rect.height) * (rect.height - minSide) / 2;
+
+  const scaling = [minSide - paddingX * 2, minSide - paddingY * 2];
+  const translation = [translationX + paddingX, translationY + paddingY];
+
+  return (p) => {
+    return [p[0] * scaling[0] + translation[0], p[1] * scaling[1] + translation[1]];
+  };
+}
+
+function makePixi(wrapper, n) {
+  const pixi = new PIXI.Application({
+    width: wrapper.getBoundingClientRect().width,
+    height: wrapper.getBoundingClientRect().height,
+    backgroundColor: 0xffffff,
+    antialias: true,
+    resolution: 1,
+  });
+
+  wrapper.appendChild(pixi.view);
+
+  const container = new PIXI.Graphics();
+  pixi.stage.addChild(container);
+  const linesContainer = new PIXI.Container();
+  container.addChild(linesContainer);
+  const circlesContainer = new PIXI.Container();
+  container.addChild(circlesContainer);
+  const pathContainer = new PIXI.Container();
+  container.addChild(pathContainer);
+
+  const posCircles = [];
+  const negCircles = [];
+
   for (let i = 0; i < n; i += 1) {
-    const z = [xs[i], ys[i]];
-    zs.push(div(z, n));
+    const posCircle = new PIXI.Graphics();
+    posCircles.push(posCircle);
+    circlesContainer.addChild(posCircle);
+    const negCircle = new PIXI.Graphics();
+    negCircles.push(negCircle);
+    circlesContainer.addChild(negCircle);
   }
 
-  const zero = zs[shift];
-  const pos = zs.slice(shift + 1);
-  const neg = zs.slice(0, shift).reverse();
+  return [pixi, container, linesContainer, circlesContainer, pathContainer, posCircles, negCircles];
+}
 
-  let points = [];
-  let prevTimestamp;
+function startDraw(wrapper, xs, ys) {
+  const [zero, pos, neg] = fourierCycles(xs, ys);
+  const numCircles = Math.min(pos.length, neg.length);
+  const [pixi, container, linesContainer, circlesContainer, pathContainer, posCircles, negCircles] = makePixi(wrapper, numCircles);
+
+  const transformer = calcTransformer(wrapper);
+  const duration = 2 * xs.length;
+
+  let lastPoint;
   let t = 0;
+  let firstTime = true;
 
-  function loop(timestamp) {
-    if (!prevTimestamp) prevTimestamp = timestamp;
-    const delta = timestamp - prevTimestamp;
+  const draw = () => {
+    const n = numCircles;
 
-    if (delta > 1000 / 60) {
-      if (t > duration) {
-        points = [];
-        t = 0;
+    linesContainer.removeChildren();
+
+    const twoPIMulT = 2 * Math.PI * t / duration;
+    let r = zero;
+
+    for (let c = 1; c <= n; c += 1) {
+      let from = transformer(r);
+      r = add(r, mul(pos[c - 1], exp([0, c * twoPIMulT])));
+      let to = transformer(r);
+
+      const posLine = new PIXI.Graphics();
+      posLine.lineStyle(1, 0x000000, 0.3);
+      posLine.moveTo(from[0], from[1]);
+      posLine.lineTo(to[0], to[1]);
+      linesContainer.addChild(posLine);
+
+      const posCircle = posCircles[c - 1];
+      if (firstTime) {
+        posCircle.lineStyle(1, 0x000000, 0.3);
+        posCircle.arc(0, 0, abs(sub(to, from)), 0, 2 * Math.PI);
+      }
+      posCircle.x = from[0];
+      posCircle.y = from[1];
+      
+      from = to;
+      r = add(r, mul(neg[c - 1], exp([0, -c * twoPIMulT])));
+      to = transformer(r);
+
+      const negLine = new PIXI.Graphics();
+      negLine.lineStyle(1, 0x000000, 0.3);
+      negLine.moveTo(from[0], from[1]);
+      negLine.lineTo(to[0], to[1]);
+      linesContainer.addChild(negLine);
+
+      const negCircle = negCircles[c - 1];
+      if (firstTime) {
+        negCircle.lineStyle(1, 0x000000, 0.3);
+        negCircle.arc(0, 0, abs(sub(to, from)), 0, 2 * Math.PI);
       }
 
-      prevTimestamp = timestamp;
-
-      draw(wrapper, canvas, points, t, duration, zero, pos, neg);
-
-      t += delta;
+      negCircle.x = from[0];
+      negCircle.y = from[1];
     }
 
-    window.requestAnimationFrame(loop);
-  }
+    let z = mul(zero, exp([0, 0]));
+    for (let c = 1; c <= n; c += 1) {
+      z = add(z, mul(pos[c - 1], exp([0, c * twoPIMulT])));
+      z = add(z, mul(neg[c - 1], exp([0, -c * twoPIMulT])));
+    }
+    const point = transformer(z);
 
-  window.requestAnimationFrame(loop);
+    if (lastPoint) {
+      const p = new PIXI.Graphics();
+      p.lineStyle(1, 0x000000, 1);
+      p.moveTo(lastPoint[0], lastPoint[1]);
+      p.lineTo(point[0], point[1]);
+      pathContainer.addChild(p);
+    }
+
+    lastPoint = point;
+    firstTime = false;
+  };
+
+  pixi.ticker.add((delta) => {
+    if (t > duration) {
+      pathContainer.removeChildren();
+      t = 0;
+    }
+
+    draw();
+
+    t += delta;
+  });
 }
 
 // const [pointXs, pointYs] = makeSquarePoints(100);
-// const [pointXs, pointYs] = makeTrianglePoints(100);
-const [pointXs, pointYs] = makeStarPoints(100);
-startDraw(document.getElementById('canvas-wrapper'), document.getElementById('canvas'), pointXs, pointYs);
+const [pointXs, pointYs] = makeTrianglePoints(100);
+// const [pointXs, pointYs] = makeStarPoints(100);
+// const [pointXs, pointYs] = makeCabbitPoints();
+startDraw(document.getElementById('wrapper'), pointXs, pointYs);
