@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div>fps: <span id="fps"></span></div>
+  <script>
+//     function makeLineProgram(gl) {
+//       const vertexShaderSrc = `
+// precision mediump float;
+
+// uniform vec2 u_resolution;
+
+
+// attribute float a_length;
+
+// #define THICKNESS 1.0
+
+// void main() {
+
+// }
+//       `;
+//     }
+
+    function makeCircleProgram(gl) {
+      const vertexShaderSrc = `
+precision mediump float;
+
+uniform vec2 u_resolution;
+uniform float u_numSides;
+
+attribute float a_vertexID;
+attribute vec2 a_center;
+attribute float a_radius;
+
+#define PI 3.14159265
+#define THICKNESS 1.0
+
+void main() {
+  float i = floor(a_vertexID / 6.0);
+  float j = floor(mod(a_vertexID, 6.0));
+
+  float halfThickness = THICKNESS / a_radius / 2.0;
+  float outerThickness = 1.0 + halfThickness;
+  float innerThickness = 1.0 - halfThickness;
+
+  float step = 2.0 * PI / u_numSides;
+  float angle = i * step;
+  float nextAngle = angle + step;
+
+  vec2 cur = vec2(cos(angle), sin(angle));
+  vec2 next = vec2(cos(nextAngle), sin(nextAngle));
+
+  vec2 outer1 = cur * outerThickness;
+  vec2 outer2 = next * outerThickness;
+  vec2 inner1 = cur * innerThickness;
+  vec2 inner2 = next * innerThickness;
+
+  vec2 position = float(4.5 < j && j < 5.5) * inner1
+                + float(3.5 < j && j < 4.5) * inner2
+                + float(2.5 < j && j < 3.5) * outer1
+                + float(1.5 < j && j < 2.5) * inner2
+                + float(0.5 < j && j < 1.5) * outer2
+                + float(j < 0.5) * outer1;
+
+  position = position * a_radius + a_center;
+  vec2 normalizedPosition = ((position / u_resolution) * 2.0 - 1.0) * vec2(1.0, -1.0);
+  gl_Position = vec4(normalizedPosition, 0.0, 1.0);
+}
+      `;
+
+      const fragmentShaderSrc = `
+precision mediump float;
+
+void main() {
+  gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+  gl_FragColor = vec4(1,0,0,1);  // draw red
+
+}
+      `;
+
+      const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+      gl.shaderSource(vertexShader, vertexShaderSrc);
+      gl.compileShader(vertexShader);
+
+      if (gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+        console.log("vertex shader compiled successfully");
+      } else {
+        console.log("error while compiling vertex shader");
+      }
+
+      console.log(gl.getShaderInfoLog(vertexShader));
+
+      const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+      gl.shaderSource(fragmentShader, fragmentShaderSrc);
+      gl.compileShader(fragmentShader);
+
+      if (gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+        console.log("fragment shader compiled successfully");
+      } else {
+        console.log("error while compiling fragment shader");
+      }
+
+      console.log(gl.getShaderInfoLog(fragmentShader)); 
+
+      const program = gl.createProgram();
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+
+      return program;
+    }
+
+    const canvas = document.getElementById("canvas");
+    canvas.width = 1000;
+    canvas.height = 500;
+    const gl = canvas.getContext("webgl");
+    const ext = gl.getExtension('ANGLE_instanced_arrays');
+
+    const program = makeCircleProgram(gl);
+
+    const numCircles = 5;
+    const numSides = 32;
+    const vertexIds = new Float32Array(numSides * 6);
+    vertexIds.forEach((_, i) => {
+      vertexIds[i] = i;
+    });
+
+    const radiuses = new Float32Array(numCircles);
+    {
+      let i = 0;
+      radiuses[i++] = 125;
+      radiuses[i++] = 125;
+      radiuses[i++] = 25;
+      radiuses[i++] = 25;
+      radiuses[i++] = 250;
+    }
+    
+    const centers = new Float32Array(2 * numCircles);
+    {
+      let i = 0;
+      [centers[i++], centers[i++]] = [250, 250];
+      [centers[i++], centers[i++]] = [300, 300];
+      [centers[i++], centers[i++]] = [250, 250];
+      [centers[i++], centers[i++]] = [400, 400];
+      [centers[i++], centers[i++]] = [250, 250];
+    }
+   
+    const vertexIdAttribLocation = gl.getAttribLocation(program, "a_vertexID");
+    const vertexIdBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexIdBuffer);
+    gl.enableVertexAttribArray(vertexIdAttribLocation);
+    gl.vertexAttribPointer(vertexIdAttribLocation, 1, gl.FLOAT, false, 0, 0);
+    gl.bufferData(gl.ARRAY_BUFFER, vertexIds, gl.STATIC_DRAW);
+    ext.vertexAttribDivisorANGLE(vertexIdAttribLocation, 0);
+
+    const radiusAttribLocation = gl.getAttribLocation(program, "a_radius");
+    const radiusBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, radiusBuffer);
+    gl.enableVertexAttribArray(radiusAttribLocation);
+    gl.vertexAttribPointer(radiusAttribLocation, 1, gl.FLOAT, false, 0, 0);
+    gl.bufferData(gl.ARRAY_BUFFER, radiuses, gl.DYNAMIC_DRAW);
+    ext.vertexAttribDivisorANGLE(radiusAttribLocation, 1);
+
+    const centerAttribLocation = gl.getAttribLocation(program, "a_center");
+    const centerBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, centerBuffer);
+    gl.enableVertexAttribArray(centerAttribLocation);
+    gl.vertexAttribPointer(centerAttribLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.bufferData(gl.ARRAY_BUFFER, centers, gl.DYNAMIC_DRAW);
+    ext.vertexAttribDivisorANGLE(centerAttribLocation, 1);
+
+    const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
+    const numSidesUniformLocation = gl.getUniformLocation(program, "u_numSides");
+
+    gl.useProgram(program);
+    gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
+    gl.uniform1f(numSidesUniformLocation, numSides);
+
+    gl.clearColor(1, 1, 1, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    // gl.drawArrays(gl.TRIANGLES, 0, 64 * 6);
+    ext.drawArraysInstancedANGLE(gl.TRIANGLES, 0, numSides * 6, 5);
+
+    const fpsElem = document.getElementById("fps");
+
+    const maxHistory = 60;
+    const fpsHistory = new Array(maxHistory).fill(0);
+    let historyNdx = 0;
+    let historyTotal = 0;
+
+    let then = 0;
+    function render(now) {
+      const deltaTime = now - then;
+      then = now;
+      
+      historyTotal += deltaTime - fpsHistory[historyNdx];
+      fpsHistory[historyNdx] = deltaTime;
+      historyNdx = (historyNdx + 1) % maxHistory;
+      
+      fpsElem.textContent = (1000 / (historyTotal / maxHistory)).toFixed(1);
+
+      gl.clearColor(1, 1, 1, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      // for (let i = 0; i < numCircles; i += 1) {
+      //   const [cx, cy] = [Math.random() * canvas.width, Math.random() * canvas.height];
+      //   const radius = Math.random() * canvas.width;
+      //   centers[i * 2] = cx;
+      //   centers[i * 2 + 1] = cy;
+      //   radiuses[i] = radius;
+      // }
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, radiusBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, radiuses, gl.DYNAMIC_DRAW);
+      // gl.bufferSubData(gl.ARRAY_BUFFER, 0, radiuses);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, centerBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, centers, gl.DYNAMIC_DRAW);
+      // gl.bufferSubData(gl.ARRAY_BUFFER, 0, centers);
+      
+      ext.drawArraysInstancedANGLE(gl.TRIANGLES, 0, 6 * numSides, numCircles);
+
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+  </script> 
+</body>
+</html>

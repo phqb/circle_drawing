@@ -23,7 +23,7 @@ attribute vec2 a_texcoord;
 
 varying vec2 v_texcoord;
 
-const float THICKNESS = 4.0;
+const float THICKNESS = 1.0;
 
 void main() {
   vec2 position = a_position * (u_radius + THICKNESS / 2.0) + u_center;
@@ -40,7 +40,7 @@ uniform float u_radius;
 
 varying vec2 v_texcoord;
 
-const float THICKNESS = 4.0;
+const float THICKNESS = 1.0;
 
 void main() {
   // float feather = 2.0 / u_radius;
@@ -138,7 +138,6 @@ void main() {
     gl.useProgram(program);
 
     function drawCircle(gl, program, canvasWidth, canvasHeight, cx, cy, radius) {
-      gl.uniform2f(resolutionUniformLocation, canvasWidth, canvasHeight);
       gl.uniform2f(centerUniformLocation, cx, cy);
       gl.uniform1f(radiusUniformLocation, radius);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -149,6 +148,8 @@ void main() {
     gl.blendEquation(gl.FUNC_ADD);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
+    gl.uniform2f(resolutionUniformLocation, canvasWidth, canvasHeight);
+
     gl.clearColor(1, 1, 1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
  
@@ -158,38 +159,39 @@ void main() {
     drawCircle(gl, program, canvasWidth, canvasHeight, 400, 400, 25);
     drawCircle(gl, program, canvasWidth, canvasHeight, 250, 250, 250);
     
-    const numCircles = 700;
+    // const numCircles = 450;
 
-    const fpsElem = document.getElementById("fps");
+    // const fpsElem = document.getElementById("fps");
 
-    const maxHistory = 60;
-    const fpsHistory = new Array(maxHistory).fill(0);
-    let historyNdx = 0;
-    let historyTotal = 0;
+    // const maxHistory = 60;
+    // const fpsHistory = new Array(maxHistory).fill(0);
+    // let historyNdx = 0;
+    // let historyTotal = 0;
 
-    let then = 0;
-    function render(now) {
-      const deltaTime = now - then;
-      then = now;
+    // let then = 0;
+    // function render(now) {
+    //   const deltaTime = now - then;
+    //   then = now;
       
-      historyTotal += deltaTime - fpsHistory[historyNdx];
-      fpsHistory[historyNdx] = deltaTime;
-      historyNdx = (historyNdx + 1) % maxHistory;
+    //   historyTotal += deltaTime - fpsHistory[historyNdx];
+    //   fpsHistory[historyNdx] = deltaTime;
+    //   historyNdx = (historyNdx + 1) % maxHistory;
       
-      fpsElem.textContent = (1000 / (historyTotal / maxHistory)).toFixed(1);
+    //   fpsElem.textContent = (1000 / (historyTotal / maxHistory)).toFixed(1);
 
-      gl.clearColor(1, 1, 1, 1);
-      gl.clear(gl.COLOR_BUFFER_BIT);
+    //   gl.clearColor(1, 1, 1, 1);
+    //   gl.clear(gl.COLOR_BUFFER_BIT);
       
-      for (let i = 0; i < numCircles; i += 1) {
-        const [cx, cy] = [Math.random() * canvasWidth, Math.random() * canvasHeight];
-        const radius = Math.random() * canvasWidth;
-        drawCircle(gl, program, canvasWidth, canvasHeight, cx, cy, radius);
-      }
+    //   for (let i = 0; i < numCircles; i += 1) {
+    //     const [cx, cy] = [Math.random() * canvasWidth, Math.random() * canvasHeight];
+    //     const radius = Math.random() * canvasWidth;
+    //     // const radius = 16;
+    //     drawCircle(gl, program, canvasWidth, canvasHeight, cx, cy, radius);
+    //   }
       
-      requestAnimationFrame(render);
-    }
-    requestAnimationFrame(render);
+    //   requestAnimationFrame(render);
+    // }
+    // requestAnimationFrame(render);
   </script>
 </body>
 </html>
