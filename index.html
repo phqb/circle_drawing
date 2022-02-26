@@ -5,29 +5,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Document</title>
-  <script src="https://pixijs.download/release/pixi.js"></script>
   <script src="lib/fft.js"></script>
   <style>
     * {
       box-sizing: border-box;
     }
     body {
-      box-sizing: border-box;
-      background: grey;
+      overflow: hidden;
       margin: 0;
       padding: 0;
-      height: 100vh;
-    }
-    #wrapper {
-      width: 100%; 
-      height: 100%;
     }
   </style>
 </head>
 
 <body>
-  <div id="wrapper"></div>
-  <script src="index.js"></script>
+  <canvas id="canvas"></canvas>
+  <script src="main.js" type="module"></script>
 </body>
 
 </html>

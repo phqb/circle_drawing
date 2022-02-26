@@ -10,77 +10,53 @@
   <canvas id="canvas"></canvas>
   <div>fps: <span id="fps"></span></div>
   <script>
-//     function makeLineProgram(gl) {
-//       const vertexShaderSrc = `
-// precision mediump float;
-
-// uniform vec2 u_resolution;
-
-
-// attribute float a_length;
-
-// #define THICKNESS 1.0
-
-// void main() {
-
-// }
-//       `;
-//     }
-
     function makeCircleProgram(gl) {
       const vertexShaderSrc = `
 precision mediump float;
 
 uniform vec2 u_resolution;
-uniform float u_numSides;
 
-attribute float a_vertexID;
-attribute vec2 a_center;
 attribute float a_radius;
+attribute vec2 a_center;
+attribute vec2 a_position;
+attribute vec2 a_texcoord;
 
-#define PI 3.14159265
-#define THICKNESS 1.0
+varying vec2 v_texcoord;
+varying float v_radius;
+
+const float THICKNESS = 1.0;
 
 void main() {
-  float i = floor(a_vertexID / 6.0);
-  float j = floor(mod(a_vertexID, 6.0));
-
-  float halfThickness = THICKNESS / a_radius / 2.0;
-  float outerThickness = 1.0 + halfThickness;
-  float innerThickness = 1.0 - halfThickness;
-
-  float step = 2.0 * PI / u_numSides;
-  float angle = i * step;
-  float nextAngle = angle + step;
-
-  vec2 cur = vec2(cos(angle), sin(angle));
-  vec2 next = vec2(cos(nextAngle), sin(nextAngle));
-
-  vec2 outer1 = cur * outerThickness;
-  vec2 outer2 = next * outerThickness;
-  vec2 inner1 = cur * innerThickness;
-  vec2 inner2 = next * innerThickness;
-
-  vec2 position = float(4.5 < j && j < 5.5) * inner1
-                + float(3.5 < j && j < 4.5) * inner2
-                + float(2.5 < j && j < 3.5) * outer1
-                + float(1.5 < j && j < 2.5) * inner2
-                + float(0.5 < j && j < 1.5) * outer2
-                + float(j < 0.5) * outer1;
-
-  position = position * a_radius + a_center;
+  vec2 position = a_position * (a_radius + THICKNESS / 2.0) + a_center;
   vec2 normalizedPosition = ((position / u_resolution) * 2.0 - 1.0) * vec2(1.0, -1.0);
   gl_Position = vec4(normalizedPosition, 0.0, 1.0);
+  v_texcoord = a_texcoord;
+  v_radius = a_radius;
 }
-      `;
-
+      `; 
       const fragmentShaderSrc = `
 precision mediump float;
 
-void main() {
-  gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-  gl_FragColor = vec4(1,0,0,1);  // draw red
+uniform vec2 u_resolution;
 
+varying vec2 v_texcoord;
+varying float v_radius;
+
+const float THICKNESS = 1.0;
+
+void main() {
+  // float feather = 2.0 / u_radius;
+  vec2 v = v_texcoord - vec2(0.5);
+  float squaredDist = dot(v, v);
+  float thickness = THICKNESS / (2.0 * v_radius);
+  float squaredInner = pow(0.5 - thickness, 2.0);
+  float squaredOuter = pow(0.5, 2.0);
+
+  float d = step(squaredInner, squaredDist) * (1.0 - step(squaredOuter, squaredDist));
+  // float d = smoothstep(squaredInner * (1.0 - feather), squaredInner * (1.0 + feather), squaredDist)
+  //           * (1.0 - smoothstep(squaredOuter * (1.0 - feather), squaredOuter * (1.0 + feather), squaredDist));
+
+  gl_FragColor = vec4(vec3(1.0, 0.0, 0.0), d);
 }
       `;
 
@@ -117,47 +93,66 @@ void main() {
     }
 
     const canvas = document.getElementById("canvas");
-    canvas.width = 1000;
-    canvas.height = 500;
-    const gl = canvas.getContext("webgl");
+    const [canvasWidth, canvasHeight] = [1500, 1000];
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
+    const gl = canvas.getContext('webgl');
     const ext = gl.getExtension('ANGLE_instanced_arrays');
 
     const program = makeCircleProgram(gl);
 
-    const numCircles = 5;
-    const numSides = 32;
-    const vertexIds = new Float32Array(numSides * 6);
-    vertexIds.forEach((_, i) => {
-      vertexIds[i] = i;
-    });
+    const circlePositions = new Float32Array([
+      -1, 1,
+      1, 1,
+      -1, -1,
+      -1, -1,
+      1, 1,
+      1, -1,
+    ]);
 
-    const radiuses = new Float32Array(numCircles);
-    {
-      let i = 0;
-      radiuses[i++] = 125;
-      radiuses[i++] = 125;
-      radiuses[i++] = 25;
-      radiuses[i++] = 25;
-      radiuses[i++] = 250;
-    }
-    
-    const centers = new Float32Array(2 * numCircles);
-    {
-      let i = 0;
-      [centers[i++], centers[i++]] = [250, 250];
-      [centers[i++], centers[i++]] = [300, 300];
-      [centers[i++], centers[i++]] = [250, 250];
-      [centers[i++], centers[i++]] = [400, 400];
-      [centers[i++], centers[i++]] = [250, 250];
-    }
-   
-    const vertexIdAttribLocation = gl.getAttribLocation(program, "a_vertexID");
-    const vertexIdBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertexIdBuffer);
-    gl.enableVertexAttribArray(vertexIdAttribLocation);
-    gl.vertexAttribPointer(vertexIdAttribLocation, 1, gl.FLOAT, false, 0, 0);
-    gl.bufferData(gl.ARRAY_BUFFER, vertexIds, gl.STATIC_DRAW);
-    ext.vertexAttribDivisorANGLE(vertexIdAttribLocation, 0);
+    const circleTexPositions = new Float32Array([
+      0, 1,
+      1, 1,
+      0, 0,
+      0, 0,
+      1, 1,
+      1, 0,
+    ]);
+
+    const numCircles = 5;
+
+    // const radiuses = new Float32Array(numCircles);
+    const radiuses = new Float32Array([
+      125,
+      125,
+      25, 
+      25,
+      250,
+    ]);
+
+    // const centers = new Float32Array(numCircles * 2);
+    const centers = new Float32Array([
+      250, 250,
+      300, 300,
+      250, 250,
+      400, 400,
+      250, 250,
+    ]);
+
+    const positionAttribLocation = gl.getAttribLocation(program, "a_position");
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.enableVertexAttribArray(positionAttribLocation);
+    gl.vertexAttribPointer(positionAttribLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.bufferData(gl.ARRAY_BUFFER, circlePositions, gl.STATIC_DRAW);
+
+    const texcoordAttribLocation = gl.getAttribLocation(program, "a_texcoord");
+    const texcoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+    gl.enableVertexAttribArray(texcoordAttribLocation);
+    gl.vertexAttribPointer(texcoordAttribLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.bufferData(gl.ARRAY_BUFFER, circleTexPositions, gl.STATIC_DRAW);
 
     const radiusAttribLocation = gl.getAttribLocation(program, "a_radius");
     const radiusBuffer = gl.createBuffer();
@@ -176,17 +171,28 @@ void main() {
     ext.vertexAttribDivisorANGLE(centerAttribLocation, 1);
 
     const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
-    const numSidesUniformLocation = gl.getUniformLocation(program, "u_numSides");
+    // const radiusUniformLocation = gl.getUniformLocation(program, "u_radius");
+    // const centerUniformLocation = gl.getUniformLocation(program, "u_center");
 
     gl.useProgram(program);
-    gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
-    gl.uniform1f(numSidesUniformLocation, numSides);
+
+    function drawCircle(gl, program, canvasWidth, canvasHeight, cx, cy, radius) {
+      gl.uniform2f(centerUniformLocation, cx, cy);
+      gl.uniform1f(radiusUniformLocation, radius);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    gl.disable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+    gl.blendEquation(gl.FUNC_ADD);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    gl.uniform2f(resolutionUniformLocation, canvasWidth, canvasHeight);
 
     gl.clearColor(1, 1, 1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // gl.drawArrays(gl.TRIANGLES, 0, 64 * 6);
-    ext.drawArraysInstancedANGLE(gl.TRIANGLES, 0, numSides * 6, 5);
+    ext.drawArraysInstancedANGLE(gl.TRIANGLES, 0, 6, 5);
 
     const fpsElem = document.getElementById("fps");
 
@@ -210,8 +216,8 @@ void main() {
       gl.clear(gl.COLOR_BUFFER_BIT);
 
       // for (let i = 0; i < numCircles; i += 1) {
-      //   const [cx, cy] = [Math.random() * canvas.width, Math.random() * canvas.height];
-      //   const radius = Math.random() * canvas.width;
+      //   const [cx, cy] = [Math.random() * canvasWidth, Math.random() * canvasHeight];
+      //   const radius = Math.random() * canvasWidth;
       //   centers[i * 2] = cx;
       //   centers[i * 2 + 1] = cy;
       //   radiuses[i] = radius;
@@ -225,11 +231,11 @@ void main() {
       gl.bufferData(gl.ARRAY_BUFFER, centers, gl.DYNAMIC_DRAW);
       // gl.bufferSubData(gl.ARRAY_BUFFER, 0, centers);
       
-      ext.drawArraysInstancedANGLE(gl.TRIANGLES, 0, 6 * numSides, numCircles);
+      ext.drawArraysInstancedANGLE(gl.TRIANGLES, 0, 6, numCircles);
 
       requestAnimationFrame(render);
     }
     requestAnimationFrame(render);
-  </script> 
+  </script>
 </body>
 </html>

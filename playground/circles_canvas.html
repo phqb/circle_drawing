@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <canvas id="canvas" width="1500" height="1000"></canvas> 
+  <div>fps: <span id="fps"></span></div>
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const fpsElem = document.getElementById("fps");
+    const numCircles = 700;
+
+    const maxHistory = 60;
+    const fpsHistory = new Array(maxHistory).fill(0);
+    let historyNdx = 0;
+    let historyTotal = 0;
+
+    let then = 0;
+    let stop = false;
+    function render(now) {
+      if (stop) {
+        return;
+      }
+
+      const deltaTime = now - then;
+      then = now;
+      
+      historyTotal += deltaTime - fpsHistory[historyNdx];
+      fpsHistory[historyNdx] = deltaTime;
+      historyNdx = (historyNdx + 1) % maxHistory;
+      
+      fpsElem.textContent = (1000 / (historyTotal / maxHistory)).toFixed(1);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "#FF0000";
+      // ctx.lineWidth = 2;
+      
+      for (let i = 0; i < numCircles; i += 1) {
+        const [cx, cy] = [Math.random() * canvas.width, Math.random() * canvas.height];
+        const radius = Math.random() * canvas.width;
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+      
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>

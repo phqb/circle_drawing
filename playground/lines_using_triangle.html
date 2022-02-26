@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div>fps: <span id="fps"></span></div>
+  <script>
+    function makeProgram(gl, vertexShaderSrc, fragmentShaderSrc) {
+      const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+      gl.shaderSource(vertexShader, vertexShaderSrc);
+      gl.compileShader(vertexShader);
+
+      if (gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+        console.log("vertex shader compiled successfully");
+      } else {
+        console.log("error while compiling vertex shader");
+      }
+
+      console.log(gl.getShaderInfoLog(vertexShader));
+
+      const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+      gl.shaderSource(fragmentShader, fragmentShaderSrc);
+      gl.compileShader(fragmentShader);
+
+      if (gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+        console.log("fragment shader compiled successfully");
+      } else {
+        console.log("error while compiling fragment shader");
+      }
+
+      console.log(gl.getShaderInfoLog(fragmentShader)); 
+
+      const program = gl.createProgram();
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+
+      return program;  
+    }
+
+    function makeLineProgram(gl) {
+      const vertexShaderSrc = `
+precision mediump float;
+
+uniform vec2 u_resolution;
+uniform vec2 u_start;
+uniform vec2 u_end;
+
+attribute float a_vertexID;
+
+#define THICKNESS 2.0
+
+void main() {
+  vec2 v = u_end - u_start;
+  vec2 norm = normalize(v) * (THICKNESS / 2.0);
+  vec2 norm1 = mat2(0.0, -1.0, 1.0, 0.0) * norm;
+  vec2 norm2 = mat2(0.0, 1.0, -1.0, 0.0) * norm;
+
+  vec2 position = float(a_vertexID < 0.5) * (u_start + norm1)
+                + float(0.5 < a_vertexID && a_vertexID < 1.5) * (u_start + norm2)
+                + float(1.5 < a_vertexID && a_vertexID < 2.5) * (u_end + norm1)
+                + float(2.5 < a_vertexID && a_vertexID < 3.5) * (u_end + norm2);
+
+  vec2 normalizedPosition = ((position / u_resolution) * 2.0 - 1.0) * vec2(1.0, -1.0);
+  gl_Position = vec4(normalizedPosition, 0.0, 1.0);
+}
+      `;
+
+      const fragmentShaderSrc = `
+precision mediump float;
+
+void main() {
+  gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+}
+      `;
+
+      return makeProgram(gl, vertexShaderSrc, fragmentShaderSrc);
+    }
+
+    const canvas = document.getElementById("canvas");
+    canvas.width = 1000;
+    canvas.height = 500;
+    const gl = canvas.getContext("webgl");
+
+    const lineProgram = makeLineProgram(gl);
+
+    const lineVertexIds = new Float32Array([0, 1, 2, 3]);
+    const lineVertexIdAttrib = gl.getAttribLocation(lineProgram, "a_vertexID");
+    const lineVertexIdBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, lineVertexIdBuffer);
+    gl.enableVertexAttribArray(lineVertexIdAttrib);
+    gl.vertexAttribPointer(lineVertexIdAttrib, 1, gl.FLOAT, false, 0, 0);
+    gl.bufferData(gl.ARRAY_BUFFER, lineVertexIds, gl.STATIC_DRAW);
+
+    const lineStartUniform = gl.getUniformLocation(lineProgram, "u_start");
+    const lineEndUniform = gl.getUniformLocation(lineProgram, "u_end");
+
+    function drawLine(start_x, start_y, end_x, end_y) {
+      gl.uniform2f(lineStartUniform, start_x, start_y);
+      gl.uniform2f(lineEndUniform, end_x, end_y);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    const lineResolutionUniform = gl.getUniformLocation(lineProgram, "u_resolution");
+
+    gl.useProgram(lineProgram);
+    gl.uniform2f(lineResolutionUniform, canvas.width, canvas.height);
+
+    const numLines = 25000;
+
+    const fpsElem = document.getElementById("fps");
+
+    const maxHistory = 60;
+    const fpsHistory = new Array(maxHistory).fill(0);
+    let historyNdx = 0;
+    let historyTotal = 0;
+
+    let then = 0;
+    function render(now) {
+      const deltaTime = now - then;
+      then = now;
+      
+      historyTotal += deltaTime - fpsHistory[historyNdx];
+      fpsHistory[historyNdx] = deltaTime;
+      historyNdx = (historyNdx + 1) % maxHistory;
+      
+      fpsElem.textContent = (1000 / (historyTotal / maxHistory)).toFixed(1);
+
+      gl.clearColor(1, 1, 1, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      // for (let i = 0; i < numLines; i += 1 ) {
+      //   const [start_x, start_y] = [Math.random() * canvas.width, Math.random() * canvas.height];
+      //   const [end_x, end_y] = [Math.random() * canvas.width, Math.random() * canvas.height];
+      //   drawLine(start_x, start_y, end_x, end_y);
+      // }
+
+      drawLine(10, 10, 400, 400);
+      drawLine(10, 400, 400, 400);
+
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+  </script> 
+</body>
+</html>
