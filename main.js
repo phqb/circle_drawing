@@ -1,7 +1,7 @@
 import { add, sub, exp, mul, abs } from './complex.js';
 import { fourierCycles } from './fourierCycles.js';
 import { makeProgram } from './webglutils.js';
-import init, { wasm_image_to_cycle } from './lib/circles_drawing/circles_drawing.js';
+import init, { wasm_image_to_cycle } from './lib/oneliner/oneliner.js';
 
 const canvas = document.getElementById('canvas');
 const imageCanvas = document.getElementById('imageCanvas');
@@ -306,11 +306,6 @@ Promise.all([
         }
         drawLine(from[0], from[1], to[0], to[1]);
       }
-      // for (let i = 0, n = points.length - 1; i < n; i += 1) {
-      //   const from = transform(points[i]);
-      //   const to = transform(points[i + 1]);
-      //   drawLine(from[0], from[1], to[0], to[1]);
-      // }
 
       if (!pausing) t += delta;
 

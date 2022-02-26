@@ -1,26 +1,112 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <meta name="color-scheme" content="dark light">
+  <title>Drawing with circles</title>
   <script src="lib/fft.js"></script>
+  <script src="lib/hammer.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
     }
+
     body {
-      overflow: hidden;
-      margin: 0;
-      padding: 0;
+      background: black;
+      color: white;
+    }
+
+    #canvas {
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      z-index: -1;
+    }
+
+    #imageCanvas {
+      position: fixed;
+      top: 0; 
+      left: 0;
+      z-index: -2;
+      opacity: 0;
     }
   </style>
 </head>
-
 <body>
   <canvas id="canvas"></canvas>
-  <script src="main.js" type="module"></script>
-</body>
+  <canvas id="imageCanvas"></canvas>
 
+  <div style="border: 2px solid white; padding: 1em; display: inline-flex; align-items: center; width: 100%">
+    <div>
+      <label for="image">Choose a picture:</label>
+      <br/>
+      <input type="file" id="image" accept="image/png, image/jpeg">
+    </div>
+    <div>
+      <input type="checkbox" id="follow">
+      <label for="follow">Follow the end point?</label>
+      <br/>
+      <button id="center">Center</button>
+    </div>
+    <div style="margin-left: 2em">
+      <button id="pause">Pause/Resume</button>
+    </div>
+    <div style="flex-grow: 1; margin-left: 1em">
+      <input type="range" id="time" min="0" value="0" step="1" style="width: 100%;">
+    </div>
+  </div>
+
+  <script src="main.js" type="module"></script>
+
+  <br/>
+  <div id="desc">
+    <h1>What is it?</h1>
+    This application draws anything using orbiting circles.
+    <br/><br/>
+    Here is an example:
+    <br/><br/>
+    <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/QVuU2YCwHjw" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+    <h1>How does it work?</h1>
+    <ol>
+      <li>You input an image.</li>
+      <li>
+        The application performs edge detection and converts detected edges to lines.
+        <ul>
+          <li>A sub-pixel edge detection algorithm <sup>[1]</sup> is used in this step.</li>
+        </ul>
+      </li>
+      <li>
+        The application makes lines into an one-liner line.
+        <ul>
+          <li>The details of this step can be found in the source code.</li>
+        </ul>
+      </li>
+      <li>
+        The application draws the one-liner line using orbiting circles.
+        <ul>
+          <li>The details of this step are explained in <a href="https://www.youtube.com/watch?v=r6sGWTCMz2k">this video</a> <sup>[2]</sup>.</li>
+        </ul>
+      </li>
+    </ol>
+
+    <h1>Source code</h1>
+
+    <h1>References</h1>
+    <div>
+      [1] <span style="font-variant: small-caps">Rafael Grompone von Gioi,
+        and Gregory Randall</span>,
+             <span style="font-style: italic">A Sub-Pixel Edge Detector: an Implementation of the Canny/Devernay Algorithm</span>,
+             <a href="https://doi.org/10.5201/ipol">Image Processing On Line</a>, 
+             <a href="https://doi.org/10.5201/ipol.2017">7</a>&nbsp;(2017),
+             pp.&nbsp;347–372.
+             <a href="https://doi.org/10.5201/ipol.2017.216">https://doi.org/10.5201/ipol.2017.216</a>
+    </div>
+    <div>
+      [2] But what is a Fourier series? From heat flow to drawing with circles | DE4 <a href="https://www.youtube.com/watch?v=r6sGWTCMz2k">https://www.youtube.com/watch?v=r6sGWTCMz2k</a>
+    </div>
+  </div>
+</body>
 </html>
