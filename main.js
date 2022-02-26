@@ -170,7 +170,7 @@ Promise.all([
     gl.uniform2f(arrowResolutionUniform, canvas.width, canvas.height);
 
     const minSide = Math.min(width, height);
-    const duration = 64 * xs.length;
+    const duration = 128 * xs.length;
     seekBar.max = duration;
 
     let prevTimestamp;
