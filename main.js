@@ -88,8 +88,6 @@ Promise.all([
             ys.push((y + padY) / maxSide);
           }
 
-          navigator.clipboard.writeText(JSON.stringify([xs, ys]));
-
           description.style.display = 'none';
 
           if (stopper) stopper();
