@@ -21,15 +21,7 @@ const rgb_to_grayscale = (r, g, b) => Math.floor(0.299 * r + 0.587 * g + 0.114 *
 const alpha = (t) => Math.max(0.15, 3 * t * t * t - 2 * t * t);
 
 const clampDimensions = (width, height, maxSide) => {
-  let ratio;
-  if (width <= maxSide && height <= maxSide) {
-    ratio = 1;
-  } else if (width > maxSide) {
-    ratio = maxSide / width;
-  } else {
-    ratio = maxSide / height;
-  }
-
+  const ratio = maxSide / Math.max(width, height, maxSide);
   return [width * ratio, height * ratio];
 };
 
