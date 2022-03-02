@@ -6,6 +6,7 @@ import init, { wasm_image_to_cycle } from './lib/oneliner/oneliner.js';
 const canvas = document.getElementById('canvas');
 const imageCanvas = document.getElementById('imageCanvas');
 const imageChooser = document.getElementById('image');
+const imageElement = document.getElementById('imageElement');
 const followCheckbox = document.getElementById('follow');
 followCheckbox.checked = false;
 const centerButton = document.getElementById('center');
@@ -20,33 +21,66 @@ const rgb_to_grayscale = (r, g, b) => Math.floor(0.299 * r + 0.587 * g + 0.114 *
 let stopper;
 
 Promise.all([
-  fetch('shaders/circle_vert.glsl'), 
-  fetch('shaders/circle_frag.glsl'), 
-  fetch('shaders/line_vert.glsl'), 
+  fetch('shaders/circle_vert.glsl'),
+  fetch('shaders/circle_frag.glsl'),
+  fetch('shaders/line_vert.glsl'),
   fetch('shaders/line_frag.glsl'),
-  fetch('shaders/arrow_vert.glsl'), 
-  fetch('shaders/arrow_frag.glsl'), 
+  fetch('shaders/arrow_vert.glsl'),
+  fetch('shaders/arrow_frag.glsl'),
 ].map((fut) => fut.then((resp) => resp.text()))).then(async (shaders) => {
   const [circleVert, circleFrag, lineVert, lineFrag, arrowVert, arrowFrag] = shaders;
 
   const [width, height] = [window.innerWidth, window.innerHeight];
-    
+
   canvas.width = width;
   canvas.height = height;
 
   const gl = canvas.getContext("webgl");
   const ext = gl.getExtension('ANGLE_instanced_arrays');
- 
+
   const circleProgram = makeProgram(gl, circleVert, circleFrag);
   const lineProgram = makeProgram(gl, lineVert, lineFrag);
   const arrowProgram = makeProgram(gl, arrowVert, arrowFrag);
 
   await init();
 
+  const processImageThenDraw = (data, width, height) => {
+    // convert image to grayscale
+    const input = new Uint8Array(height * width);
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      input[i / 4] = rgb_to_grayscale(r, g, b);
+    }
+
+    const points = wasm_image_to_cycle(input, height, width, 1, 5, 20, 300);
+
+    // centering the image
+    const maxSide = Math.max(width, height);
+    const padX = (width < height) * (maxSide - width) / 2;
+    const padY = (height < width) * (maxSide - height) / 2;
+
+    // calculate x coords and y coords
+    const xs = [];
+    const ys = [];
+    for (let i = 0; i < points.length; i += 2) {
+      const x = points[i];
+      const y = points[i + 1];
+      xs.push((x + padX) / maxSide);
+      ys.push((y + padY) / maxSide);
+    }
+
+    description.style.display = 'none';
+
+    if (stopper) stopper();
+    stopper = startDraw(xs, ys);
+  };
+
   if (imageChooser) {
     imageChooser.onchange = async () => {
-      if (imageChooser.files) {
-        if (imageChooser.files.length == 1) {
+      if (imageChooser.files && imageChooser.files.length == 1) {
+        if (window.createImageBitmap) {
           const image = await window.createImageBitmap(imageChooser.files[0]);
           const { height, width } = image;
 
@@ -59,55 +93,48 @@ Promise.all([
           imageCanvas.height = height;
 
           const imageCtx = imageCanvas.getContext('2d');
-          imageCtx.drawImage(image, 0, 0);
+          imageCtx.drawImage(image, 0, 0, width, height);
           const data = imageCtx.getImageData(0, 0, width, height).data;
 
-          // convert image to grayscale
-          const input = new Uint8Array(height * width);
-          for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            input[i/4] = rgb_to_grayscale(r, g, b);
-          }
+          processImageThenDraw(data, width, height);
+        } else {
+          const imageReader = new FileReader();
+          imageReader.onload = (e) => {
+            imageElement.src = e.target.result;
+            imageElement.onload = () => {
+              const { height, width } = imageElement;
 
-          const points = wasm_image_to_cycle(input, height, width, 1, 5, 20, 300);
+              if (height < 50 || width < 50) {
+                alert(`The image is too small (${width}x${height})!`);
+                return;
+              }
 
-          // centering the image
-          const maxSide = Math.max(width, height);
-          const padX = (width < height) * (maxSide - width) / 2;
-          const padY = (height < width) * (maxSide - height) / 2;
+              imageCanvas.width = width;
+              imageCanvas.height = height;
 
-          // calculate x coords and y coords
-          const xs = [];
-          const ys = [];
-          for (let i = 0; i < points.length; i += 2) {
-            const x = points[i];
-            const y = points[i + 1];
-            xs.push((x + padX) / maxSide);
-            ys.push((y + padY) / maxSide);
-          }
+              const imageCtx = imageCanvas.getContext('2d');
+              imageCtx.drawImage(imageElement, 0, 0, width, height);
+              const data = imageCtx.getImageData(0, 0, width, height).data;
 
-          description.style.display = 'none';
-
-          if (stopper) stopper();
-          stopper = startDraw(xs, ys);
+              processImageThenDraw(data, width, height);
+            };
+          };
+          imageReader.readAsDataURL(imageChooser.files[0]);
         }
       }
     };
   }
 
-
   let followEndPoint = false;
   followCheckbox.onchange = () => {
     followEndPoint = followCheckbox.checked;
-  }; 
+  };
 
   function startDraw(xs, ys) {
     const [zero, pos, neg] = fourierCycles(xs, ys);
 
     const numCircles = 2 * Math.min(pos.length, neg.length);
-    
+
     const circleNumSides = 64;
     const circleVertexIds = new Float32Array(circleNumSides * 2 + 2);
     circleVertexIds.forEach((_, i) => {
@@ -117,7 +144,7 @@ Promise.all([
     const circleRadiuses = new Float32Array(numCircles);
     const circleCenters = new Float32Array(2 * numCircles);
     const lineVertexIds = new Float32Array([0, 1, 2, 3]);
-    const arrowVertexIds = new Float32Array([0,1,2,3,4,5,6]);
+    const arrowVertexIds = new Float32Array([0, 1, 2, 3, 4, 5, 6]);
 
     const circleVertexIdAttrib = gl.getAttribLocation(circleProgram, "a_vertexID");
     const circleVertexIdBuffer = gl.createBuffer();
@@ -130,7 +157,7 @@ Promise.all([
 
     const circleResolutionUniform = gl.getUniformLocation(circleProgram, "u_resolution");
     const circleNumSidesUniform = gl.getUniformLocation(circleProgram, "u_numSides");
-    
+
     const lineVertexIdAttrib = gl.getAttribLocation(lineProgram, "a_vertexID");
     const lineVertexIdBuffer = gl.createBuffer();
 
@@ -268,7 +295,7 @@ Promise.all([
       ext.vertexAttribDivisorANGLE(circleCenterAttrib, 1);
 
       gl.bufferData(gl.ARRAY_BUFFER, circleCenters, gl.DYNAMIC_DRAW);
-      
+
       ext.drawArraysInstancedANGLE(gl.TRIANGLE_STRIP, 0, circleNumSides * 2 + 2, numCircles);
 
       gl.useProgram(arrowProgram);
@@ -293,7 +320,7 @@ Promise.all([
       ext.vertexAttribDivisorANGLE(lineVertexIdAttrib, 0);
       gl.bufferData(gl.ARRAY_BUFFER, lineVertexIds, gl.STATIC_DRAW);
 
-      const n = Math.min(t/16, points.length);
+      const n = Math.min(t / 16, points.length);
       for (let i = 0; i < n; i += 1) {
         const from = transform(points[i]);
         let to;

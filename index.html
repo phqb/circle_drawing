@@ -24,19 +24,12 @@
       left: 0; 
       z-index: -1;
     }
-
-    #imageCanvas {
-      position: fixed;
-      top: 0; 
-      left: 0;
-      z-index: -2;
-      opacity: 0;
-    }
   </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
-  <canvas id="imageCanvas"></canvas>
+  <canvas id="imageCanvas" style="display: none"></canvas>
+  <img id="imageElement" style="display: none"/>
 
   <div style="border: 2px solid white; padding: 1em; display: inline-flex; align-items: center; width: 100%">
     <div>
