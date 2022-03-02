@@ -6,13 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark light">
   <title>Drawing with circles</title>
+  <link href="bootstrap.min.css" rel="stylesheet">
   <script src="lib/fft.js"></script>
   <script src="lib/hammer.min.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
     body {
       background: black;
       color: white;
@@ -31,76 +28,89 @@
   <canvas id="imageCanvas" style="display: none"></canvas>
   <img id="imageElement" style="display: none"/>
 
-  <div style="border: 2px solid white; padding: 1em; display: inline-flex; align-items: center; width: 100%">
-    <div>
-      <label for="image">Choose a picture:</label>
-      <br/>
-      <input type="file" id="image" accept="image/png, image/jpeg">
+  <div class="container-fluid">
+    <div class="row align-items-center">
+      <div class="col-lg-6 mt-2">
+        <div class="row align-items-center">
+          <div class="col">
+            <label for="image" class="form-label">Choose a picture</label>
+            <input id="image" type="file" accept="image/png,image/jpeg" class="form-control form-control-sm">
+          </div>
+          <div class="col">
+            <div class="form-check">
+              <input type="checkbox" id="follow" class="form-check-input">
+              <label for="follow" class="form-check-label">Follow the end point?</label>
+            </div>
+          </div>
+          <div class="col">
+            <button id="center" class="btn btn-light btn-sm">Center</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6 mt-2">
+        <div class="row align-items-center">
+          <div class="col-4">
+            <button id="pause" class="btn btn-light btn-sm">Pause/Resume</button>
+          </div>
+          <div class="col-8">
+            <input type="range" id="time" min="0" value="0" step="1" class="form-range">
+          </div>
+        </div>
+      </div>
     </div>
-    <div>
-      <input type="checkbox" id="follow">
-      <label for="follow">Follow the end point?</label>
-      <br/>
-      <button id="center">Center</button>
-    </div>
-    <div style="margin-left: 2em">
-      <button id="pause">Pause/Resume</button>
-    </div>
-    <div style="flex-grow: 1; margin-left: 1em">
-      <input type="range" id="time" min="0" value="0" step="1" style="width: 100%;">
+
+    <div id="desc" class="row mt-4">
+      <div class="col">
+        <h1>What is it?</h1>
+        This application draws anything using orbiting circles.
+        <br/><br/>
+        Here is an example:
+        <br/><br/>
+        <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/QVuU2YCwHjw" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+        <h1>How does it work?</h1>
+        <ol>
+          <li>You input an image.</li>
+          <li>
+            The application performs edge detection and converts detected edges to lines.
+            <ul>
+              <li>A sub-pixel edge detection algorithm <sup>[1]</sup> is used in this step.</li>
+            </ul>
+          </li>
+          <li>
+            The application makes lines into an one-liner line.
+            <ul>
+              <li>The details of this step can be found in the source code.</li>
+            </ul>
+          </li>
+          <li>
+            The application draws the one-liner line using orbiting circles.
+            <ul>
+              <li>The details of this step are explained in <a href="https://www.youtube.com/watch?v=r6sGWTCMz2k">this video</a> <sup>[2]</sup>.</li>
+            </ul>
+          </li>
+        </ol>
+
+        <h1>Source code</h1>
+        <a href="https://github.com/phqb/circle_drawing/">https://github.com/phqb/circle_drawing/</a>
+
+        <h1>References</h1>
+        <div>
+          [1] <span style="font-variant: small-caps">Rafael Grompone von Gioi,
+            and Gregory Randall</span>,
+                <span style="font-style: italic">A Sub-Pixel Edge Detector: an Implementation of the Canny/Devernay Algorithm</span>,
+                <a href="https://doi.org/10.5201/ipol">Image Processing On Line</a>, 
+                <a href="https://doi.org/10.5201/ipol.2017">7</a>&nbsp;(2017),
+                pp.&nbsp;347–372.
+                <a href="https://doi.org/10.5201/ipol.2017.216">https://doi.org/10.5201/ipol.2017.216</a>
+        </div>
+        <div>
+          [2] But what is a Fourier series? From heat flow to drawing with circles | DE4 <a href="https://www.youtube.com/watch?v=r6sGWTCMz2k">https://www.youtube.com/watch?v=r6sGWTCMz2k</a>
+        </div>
+      </div>
     </div>
   </div>
 
   <script src="main.js" type="module"></script>
-
-  <br/>
-  <div id="desc">
-    <h1>What is it?</h1>
-    This application draws anything using orbiting circles.
-    <br/><br/>
-    Here is an example:
-    <br/><br/>
-    <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/QVuU2YCwHjw" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-
-    <h1>How does it work?</h1>
-    <ol>
-      <li>You input an image.</li>
-      <li>
-        The application performs edge detection and converts detected edges to lines.
-        <ul>
-          <li>A sub-pixel edge detection algorithm <sup>[1]</sup> is used in this step.</li>
-        </ul>
-      </li>
-      <li>
-        The application makes lines into an one-liner line.
-        <ul>
-          <li>The details of this step can be found in the source code.</li>
-        </ul>
-      </li>
-      <li>
-        The application draws the one-liner line using orbiting circles.
-        <ul>
-          <li>The details of this step are explained in <a href="https://www.youtube.com/watch?v=r6sGWTCMz2k">this video</a> <sup>[2]</sup>.</li>
-        </ul>
-      </li>
-    </ol>
-
-    <h1>Source code</h1>
-    <a href="https://github.com/phqb/circle_drawing/">https://github.com/phqb/circle_drawing/</a>
-
-    <h1>References</h1>
-    <div>
-      [1] <span style="font-variant: small-caps">Rafael Grompone von Gioi,
-        and Gregory Randall</span>,
-             <span style="font-style: italic">A Sub-Pixel Edge Detector: an Implementation of the Canny/Devernay Algorithm</span>,
-             <a href="https://doi.org/10.5201/ipol">Image Processing On Line</a>, 
-             <a href="https://doi.org/10.5201/ipol.2017">7</a>&nbsp;(2017),
-             pp.&nbsp;347–372.
-             <a href="https://doi.org/10.5201/ipol.2017.216">https://doi.org/10.5201/ipol.2017.216</a>
-    </div>
-    <div>
-      [2] But what is a Fourier series? From heat flow to drawing with circles | DE4 <a href="https://www.youtube.com/watch?v=r6sGWTCMz2k">https://www.youtube.com/watch?v=r6sGWTCMz2k</a>
-    </div>
-  </div>
 </body>
 </html>

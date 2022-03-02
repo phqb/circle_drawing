@@ -18,6 +18,21 @@ const gresture = new Hammer.Manager(canvas, { recognizers: [[Hammer.Pan]] });
 
 const rgb_to_grayscale = (r, g, b) => Math.floor(0.299 * r + 0.587 * g + 0.114 * b);
 
+const alpha = (t) => Math.max(0.15, 3 * t * t * t - 2 * t * t);
+
+const clampDimensions = (width, height, maxSide) => {
+  let ratio;
+  if (width <= maxSide && height <= maxSide) {
+    ratio = 1;
+  } else if (width > maxSide) {
+    ratio = maxSide / width;
+  } else {
+    ratio = maxSide / height;
+  }
+
+  return [width * ratio, height * ratio];
+};
+
 let stopper;
 
 Promise.all([
@@ -82,18 +97,19 @@ Promise.all([
       if (imageChooser.files && imageChooser.files.length == 1) {
         if (window.createImageBitmap) {
           const image = await window.createImageBitmap(imageChooser.files[0]);
-          const { height, width } = image;
 
-          if (height < 50 || width < 50) {
-            alert(`The image is too small (${width}x${height})!`);
+          if (image.height < 50 || image.width < 50) {
+            alert(`The image is too small (${image.width}x${image.height})!`);
             return;
           }
+
+          const [width, height] = clampDimensions(image.width, image.height, 1000);
 
           imageCanvas.width = width;
           imageCanvas.height = height;
 
           const imageCtx = imageCanvas.getContext('2d');
-          imageCtx.drawImage(image, 0, 0, width, height);
+          imageCtx.drawImage(image, 0, 0, image.width, image.height, 0, 0, width, height);
           const data = imageCtx.getImageData(0, 0, width, height).data;
 
           processImageThenDraw(data, width, height);
@@ -102,18 +118,18 @@ Promise.all([
           imageReader.onload = (e) => {
             imageElement.src = e.target.result;
             imageElement.onload = () => {
-              const { height, width } = imageElement;
-
-              if (height < 50 || width < 50) {
-                alert(`The image is too small (${width}x${height})!`);
+              if (imageElement.height < 50 || imageElement.width < 50) {
+                alert(`The image is too small (${imageElement.width}x${imageElement.height})!`);
                 return;
               }
+
+              const [width, height] = clampDimensions(imageElement.width, imageElement.height, 1000);
 
               imageCanvas.width = width;
               imageCanvas.height = height;
 
               const imageCtx = imageCanvas.getContext('2d');
-              imageCtx.drawImage(imageElement, 0, 0, width, height);
+              imageCtx.drawImage(imageElement, 0, 0, imageElement.width, imageElement.height, 0, 0, width, height);
               const data = imageCtx.getImageData(0, 0, width, height).data;
 
               processImageThenDraw(data, width, height);
@@ -131,6 +147,8 @@ Promise.all([
   };
 
   function startDraw(xs, ys) {
+    if (xs.length == 0 || ys.length == 0) return;
+
     const [zero, pos, neg] = fourierCycles(xs, ys);
 
     const numCircles = 2 * Math.min(pos.length, neg.length);
@@ -164,6 +182,7 @@ Promise.all([
     const lineStartUniform = gl.getUniformLocation(lineProgram, "u_start");
     const lineEndUniform = gl.getUniformLocation(lineProgram, "u_end");
     const lineResolutionUniform = gl.getUniformLocation(lineProgram, "u_resolution");
+    const lineAlphaUniform = gl.getUniformLocation(lineProgram, "u_alpha");
 
     const arrowVertexIdAttrib = gl.getAttribLocation(arrowProgram, "a_vertexID");
     const arrowVertexIdBuffer = gl.createBuffer();
@@ -172,9 +191,10 @@ Promise.all([
     const arrowEndUniform = gl.getUniformLocation(arrowProgram, "u_end");
     const arrowResolutionUniform = gl.getUniformLocation(arrowProgram, "u_resolution");
 
-    function drawLine(start_x, start_y, end_x, end_y) {
+    function drawLine(start_x, start_y, end_x, end_y, alpha) {
       gl.uniform2f(lineStartUniform, start_x, start_y);
       gl.uniform2f(lineEndUniform, end_x, end_y);
+      gl.uniform1f(lineAlphaUniform, alpha);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
@@ -206,6 +226,7 @@ Promise.all([
     let lastTranslate = [0, 0];
     let pausing = false;
     let stopped = false;
+    let firstTimeDone = false;
 
     const transform = (p) => {
       const s = zoom * minSide;
@@ -224,8 +245,8 @@ Promise.all([
     }
 
     const points = [];
-    for (let t = 0; t < duration; t += 16) {
-      points.push(f(t));
+    for (let i = 0, n = Math.trunc(duration / 16); i < n; i += 1) {
+      points.push(f(i * 16));
     }
 
     const render = (timestamp) => {
@@ -235,7 +256,10 @@ Promise.all([
       const delta = timestamp - prevTimestamp;
       prevTimestamp = timestamp;
 
-      if (t > duration) t = 0;
+      if (t > duration) {
+        t = 0;
+        firstTimeDone = true;
+      }
 
       seekBar.value = t;
 
@@ -320,16 +344,34 @@ Promise.all([
       ext.vertexAttribDivisorANGLE(lineVertexIdAttrib, 0);
       gl.bufferData(gl.ARRAY_BUFFER, lineVertexIds, gl.STATIC_DRAW);
 
-      const n = Math.min(t / 16, points.length);
-      for (let i = 0; i < n; i += 1) {
-        const from = transform(points[i]);
-        let to;
-        if (i + 1 < n) {
-          to = transform(points[i + 1]);
-        } else {
-          to = transform(r);
+      if (firstTimeDone) {
+        const n = Math.min(Math.trunc(t / 16), points.length - 1);
+        for (let i = 0; i < points.length; i += 1) {
+          let toIndex = i + n - (points.length - 1);
+          if (toIndex < 0) toIndex += points.length;
+          let fromIndex = toIndex - 1;
+          if (fromIndex < 0) fromIndex += points.length;
+          const from = transform(points[fromIndex]);
+          const to = transform(points[toIndex]);
+          drawLine(from[0], from[1], to[0], to[1], alpha((i + 1) / points.length));
         }
-        drawLine(from[0], from[1], to[0], to[1]);
+        {
+          const from = transform(points[n]);
+          const to = transform(r);
+          drawLine(from[0], from[1], to[0], to[1], 1);
+        }
+      } else {
+        const n = Math.min(Math.trunc(t / 16), points.length);
+        for (let i = 0; i < n; i += 1) {
+          const from = transform(points[i]);
+          let to;
+          if (i + 1 < n) {
+            to = transform(points[i + 1]);
+          } else {
+            to = transform(r);
+          }
+          drawLine(from[0], from[1], to[0], to[1], alpha((i + points.length - n) / points.length));
+        }
       }
 
       if (!pausing) t += delta;
