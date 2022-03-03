@@ -12,6 +12,7 @@ followCheckbox.checked = false;
 const centerButton = document.getElementById('center');
 const seekBar = document.getElementById('time');
 const pauseButton = document.getElementById('pause');
+const examples = document.getElementById('examples');
 const description = document.getElementById('desc');
 
 const gresture = new Hammer.Manager(canvas, { recognizers: [[Hammer.Pan]] });
@@ -51,6 +52,24 @@ Promise.all([
 
   await init();
 
+  examples.onclick = (e) => {
+    if (e.target.tagName == "IMG") {
+      imageElement.src = e.target.src;
+      imageElement.onload = () => {
+        const [width, height] = clampDimensions(imageElement.width, imageElement.height, 1000);
+
+        imageCanvas.width = width;
+        imageCanvas.height = height;
+
+        const imageCtx = imageCanvas.getContext('2d');
+        imageCtx.drawImage(imageElement, 0, 0, imageElement.width, imageElement.height, 0, 0, width, height);
+        const data = imageCtx.getImageData(0, 0, width, height).data;
+
+        processImageThenDraw(data, width, height);
+      };
+    }
+  };
+
   const processImageThenDraw = (data, width, height) => {
     // convert image to grayscale
     const input = new Uint8Array(height * width);
@@ -78,6 +97,7 @@ Promise.all([
       ys.push((y + padY) / maxSide);
     }
 
+    examples.style.display = 'none';
     description.style.display = 'none';
 
     if (stopper) stopper();

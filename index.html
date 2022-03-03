@@ -29,12 +29,21 @@
   <img id="imageElement" style="display: none"/>
 
   <div class="container-fluid">
-    <div class="row align-items-center">
+    <div class="row">
       <div class="col-lg-6 mt-2">
-        <div class="row align-items-center">
+        <div class="row">
           <div class="col">
-            <label for="image" class="form-label">Choose a picture</label>
-            <input id="image" type="file" accept="image/png,image/jpeg" class="form-control form-control-sm">
+            <label for="image" class="form-label">Try it now with your picture</label>
+            <input id="image" type="file" accept="image/png,image/jpeg" class="form-control form-control-sm mb-1">
+            <div id="examples">
+              or using example images<br/>
+              <button class="btn btn-outline-light btn-sm">
+                <img height="50" src="examples/Fourier2.jpg"/>
+              </button>
+              <button class="btn btn-outline-light btn-sm">
+                <img height="50" src="examples/Homer-Simpson.webp"/>
+              </button>
+            </div>
           </div>
           <div class="col">
             <div class="form-check">
