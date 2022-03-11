@@ -28,45 +28,54 @@
   <canvas id="imageCanvas" style="display: none"></canvas>
   <img id="imageElement" style="display: none"/>
 
+  <div id="control" class="container-fluid fixed-bottom" style="display: none">
+    <div class="row mb-2">
+      <div class="col">
+        <button id="center" class="btn btn-light btn-sm">Center</button>
+      </div>
+      <div class="col">
+        <div class="form-check">
+          <input type="checkbox" id="follow" class="form-check-input">
+          <label for="follow" class="form-check-label">Follow the end point?</label>
+        </div>
+      </div>
+      <div class="col">
+        <label>Number of circle(s):</label><label id="numCircles" class="px-2"></label>
+      </div>
+      <div class="col">
+        <input type="range" id="numCirclesSlider" min="1" max="500" value="500" step="1" class="form-range">
+      </div>
+    </div>
+    <div class="row align-items-center mb-2">
+      <div class="col flex-grow-0">
+        <button id="pause" class="btn btn-light btn-sm">Pause/Resume</button>
+      </div>
+      <div class="col flex-grow-1">
+        <input type="range" id="time" min="0" value="0" step="1" class="form-range">
+      </div>
+    </div>
+  </div>
+
   <div class="container-fluid">
     <div class="row">
       <div class="col-lg-6 mt-2">
         <div class="row">
           <div class="col">
             <label for="image" class="form-label">Try it now with your picture</label>
-            <input id="image" type="file" accept="image/png,image/jpeg" class="form-control form-control-sm mb-1">
-            <div id="examples">
-              or using example images<br/>
-              <button class="btn btn-outline-light btn-sm">
-                <img height="50" src="examples/Fourier2.jpg"/>
-              </button>
-              <button class="btn btn-outline-light btn-sm">
-                <img height="50" src="examples/Homer-Simpson.webp"/>
-              </button>
-            </div>
+            <input id="image" type="file" accept="image/png,image/jpeg" class="form-control form-control-sm mb-1"> 
           </div>
-          <div class="col">
-            <div class="form-check">
-              <input type="checkbox" id="follow" class="form-check-input">
-              <label for="follow" class="form-check-label">Follow the end point?</label>
-            </div>
-          </div>
-          <div class="col">
-            <button id="center" class="btn btn-light btn-sm">Center</button>
+          <div class="col" id="examples">
+            or using example images<br/>
+            <button class="btn btn-outline-light btn-sm">
+              <img height="50" src="examples/Fourier2.jpg"/>
+            </button>
+            <button class="btn btn-outline-light btn-sm">
+              <img height="50" src="examples/Homer-Simpson.webp"/>
+            </button>
           </div>
         </div>
-      </div>
-      <div class="col-lg-6 mt-2">
-        <div class="row align-items-center">
-          <div class="col-4">
-            <button id="pause" class="btn btn-light btn-sm">Pause/Resume</button>
-          </div>
-          <div class="col-8">
-            <input type="range" id="time" min="0" value="0" step="1" class="form-range">
-          </div>
-        </div>
-      </div>
-    </div>
+      </div> 
+    </div>  
 
     <div id="desc" class="row mt-4">
       <div class="col">

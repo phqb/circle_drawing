@@ -14,15 +14,8 @@ export function fourierCycles(xs, ys) {
   freqShift(xs, ys, -shift);
   transform(xs, ys);
 
-  const zs = [];
-  for (let i = 0; i < n; i += 1) {
-    const z = [xs[i], ys[i]];
-    zs.push(div(z, n));
-  }
+  for (let i in xs) xs[i] /= n;
+  for (let i in ys) ys[i] /= n;
 
-  const zero = zs[shift];
-  const pos = zs.slice(shift + 1);
-  const neg = zs.slice(0, shift).reverse();
-
-  return [zero, pos, neg];
+  return shift;
 }

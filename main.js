@@ -13,7 +13,10 @@ const centerButton = document.getElementById('center');
 const seekBar = document.getElementById('time');
 const pauseButton = document.getElementById('pause');
 const examples = document.getElementById('examples');
+const numCirclesLabel = document.getElementById('numCircles');
+const numCirclesSlider = document.getElementById('numCirclesSlider');
 const description = document.getElementById('desc');
+const control = document.getElementById('control');
 
 const gresture = new Hammer.Manager(canvas, { recognizers: [[Hammer.Pan]] });
 
@@ -26,18 +29,18 @@ const clampDimensions = (width, height, maxSide) => {
   return [width * ratio, height * ratio];
 };
 
+const GRAPH_DELTA_TIME = 16;
+
 let stopper;
 
 Promise.all([
-  fetch('shaders/circle_vert.glsl'),
-  fetch('shaders/circle_frag.glsl'),
-  fetch('shaders/line_vert.glsl'),
-  fetch('shaders/line_frag.glsl'),
-  fetch('shaders/arrow_vert.glsl'),
-  fetch('shaders/arrow_frag.glsl'),
-].map((fut) => fut.then((resp) => resp.text()))).then(async (shaders) => {
-  const [circleVert, circleFrag, lineVert, lineFrag, arrowVert, arrowFrag] = shaders;
-
+  fetch('shaders/circle_vert.glsl').then((r) => r.text()),
+  fetch('shaders/circle_frag.glsl').then((r) => r.text()),
+  fetch('shaders/line_vert.glsl').then((r) => r.text()),
+  fetch('shaders/line_frag.glsl').then((r) => r.text()),
+  fetch('shaders/arrow_vert.glsl').then((r) => r.text()),
+  fetch('shaders/arrow_frag.glsl').then((r) => r.text()),
+]).then(async ([circleVert, circleFrag, lineVert, lineFrag, arrowVert, arrowFrag]) => {
   const [width, height] = [window.innerWidth, window.innerHeight];
 
   canvas.width = width;
@@ -80,7 +83,7 @@ Promise.all([
       input[i / 4] = rgb_to_grayscale(r, g, b);
     }
 
-    const points = wasm_image_to_cycle(input, height, width, 1, 5, 20, 300);
+    const points = wasm_image_to_cycle(input, height, width, 1, 5, 20, 200);
 
     // centering the image
     const maxSide = Math.max(width, height);
@@ -97,11 +100,26 @@ Promise.all([
       ys.push((y + padY) / maxSide);
     }
 
-    examples.style.display = 'none';
-    description.style.display = 'none';
+    if (xs.length > 0) {
+      const shift = fourierCycles(xs, ys);
 
-    if (stopper) stopper();
-    stopper = startDraw(xs, ys);
+      const zero = [xs[shift], ys[shift]];
+      const pos = [];
+      for (let i = shift + 1; i < 2 * shift + 1; i += 1) {
+        pos.push([xs[i], ys[i]]);
+      }
+      const neg = [];
+      for (let i = shift - 1; i >= 0; i -= 1) {
+        neg.push([xs[i], ys[i]]);
+      }
+
+      examples.style.display = 'none';
+      description.style.display = 'none';
+      control.style.display = 'block';
+
+      if (stopper) stopper();
+      stopper = startDraw(zero, pos, neg);
+    } 
   };
 
   if (imageChooser) {
@@ -158,12 +176,9 @@ Promise.all([
     followEndPoint = followCheckbox.checked;
   };
 
-  function startDraw(xs, ys) {
-    if (xs.length == 0 || ys.length == 0) return;
-
-    const [zero, pos, neg] = fourierCycles(xs, ys);
-
-    const numCircles = 2 * Math.min(pos.length, neg.length);
+  function startDraw(zero, pos, neg) {
+    if (pos.length != neg.length) throw 'pos.length must be equal neg.length';
+    const maxNumCircles = 2 * pos.length;
 
     const circleNumSides = 64;
     const circleVertexIds = new Float32Array(circleNumSides * 2 + 2);
@@ -171,8 +186,8 @@ Promise.all([
       circleVertexIds[i] = i;
     });
 
-    const circleRadiuses = new Float32Array(numCircles);
-    const circleCenters = new Float32Array(2 * numCircles);
+    const circleRadiuses = new Float32Array(maxNumCircles);
+    const circleCenters = new Float32Array(2 * maxNumCircles);
     const lineVertexIds = new Float32Array([0, 1, 2, 3]);
     const arrowVertexIds = new Float32Array([0, 1, 2, 3, 4, 5, 6]);
 
@@ -227,9 +242,9 @@ Promise.all([
     gl.uniform2f(arrowResolutionUniform, canvas.width, canvas.height);
 
     const minSide = Math.min(width, height);
-    const duration = 128 * xs.length;
-    seekBar.max = duration;
+    const duration = 128 * 4 * pos.length;
 
+    let numCircles = maxNumCircles;
     let prevTimestamp;
     let t = 0;
     let zoom = 1;
@@ -246,19 +261,22 @@ Promise.all([
       return [p[0] * s + t[0] + translate[0], p[1] * s + t[1] + translate[1]];
     };
 
-    function f(t) {
-      const twoPIMulT = 2 * Math.PI * t / duration;
-      let r = zero;
-      for (let c = 1, n = Math.min(pos.length, neg.length); c <= n; c += 1) {
-        r = add(r, mul(pos[c - 1], exp([0, c * twoPIMulT])));
-        r = add(r, mul(neg[c - 1], exp([0, -c * twoPIMulT])));
-      }
-      return r;
+    const pointsByNumCircles = [[]];
+    for (let i = 0; i < numCircles; i += 1) {
+      pointsByNumCircles.push([]);
     }
 
-    const points = [];
-    for (let i = 0, n = Math.trunc(duration / 16); i < n; i += 1) {
-      points.push(f(i * 16));
+    const length = Math.trunc(duration / GRAPH_DELTA_TIME) + 1;
+    for (let i = 0; i < length; i += 1) {
+      const t = i * GRAPH_DELTA_TIME;
+      const twoPIMulT = 2 * Math.PI * t / duration;
+      let r = zero;
+      for (let c = 1; c <= pos.length; c += 1) {
+        r = add(r, mul(pos[c - 1], exp([0, c * twoPIMulT])));
+        pointsByNumCircles[2 * c - 1].push(r);
+        r = add(r, mul(neg[c - 1], exp([0, -c * twoPIMulT])));
+        pointsByNumCircles[2 * c].push(r);
+      }
     }
 
     const render = (timestamp) => {
@@ -279,19 +297,26 @@ Promise.all([
 
       const centers = [zero];
       let r = zero;
-      for (let c = 1, n = Math.min(pos.length, neg.length); c <= n; c += 1) {
-        r = add(r, mul(pos[c - 1], exp([0, c * twoPIMulT])));
-        centers.push(r);
-        r = add(r, mul(neg[c - 1], exp([0, -c * twoPIMulT])));
+      let posIndex = 0, negIndex = 0;
+      for (let i = 0; i < numCircles; i += 1) {
+        if (i % 2 == 0) {
+          const c = posIndex + 1;
+          r = add(r, mul(pos[posIndex], exp([0, c * twoPIMulT])));
+          posIndex += 1;
+        } else {
+          const c = negIndex + 1;
+          r = add(r, mul(neg[negIndex], exp([0, -c * twoPIMulT])));
+          negIndex += 1;
+        }
+
         centers.push(r);
       }
 
-      // points.push(r);
       if (followEndPoint) {
         follow = [r[0], r[1]];
       }
 
-      for (let i = 0, n = centers.length - 1; i < n; i += 1) {
+      for (let i = 0; i < numCircles; i += 1) {
         const from = transform(centers[i]);
         const to = transform(centers[i + 1]);
         const radius = abs(sub(to, from));
@@ -323,14 +348,14 @@ Promise.all([
       gl.vertexAttribPointer(circleRadiusAttrib, 1, gl.FLOAT, false, 0, 0);
       ext.vertexAttribDivisorANGLE(circleRadiusAttrib, 1);
 
-      gl.bufferData(gl.ARRAY_BUFFER, circleRadiuses, gl.DYNAMIC_DRAW);
+      gl.bufferData(gl.ARRAY_BUFFER, circleRadiuses.slice(0, numCircles), gl.DYNAMIC_DRAW);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, circleCenterBuffer);
       gl.enableVertexAttribArray(circleCenterAttrib);
       gl.vertexAttribPointer(circleCenterAttrib, 2, gl.FLOAT, false, 0, 0);
       ext.vertexAttribDivisorANGLE(circleCenterAttrib, 1);
 
-      gl.bufferData(gl.ARRAY_BUFFER, circleCenters, gl.DYNAMIC_DRAW);
+      gl.bufferData(gl.ARRAY_BUFFER, circleCenters.slice(0, 2 * numCircles), gl.DYNAMIC_DRAW);
 
       ext.drawArraysInstancedANGLE(gl.TRIANGLE_STRIP, 0, circleNumSides * 2 + 2, numCircles);
 
@@ -342,7 +367,7 @@ Promise.all([
       ext.vertexAttribDivisorANGLE(arrowVertexIdAttrib, 0);
       gl.bufferData(gl.ARRAY_BUFFER, arrowVertexIds, gl.STATIC_DRAW);
 
-      for (let i = 0, n = centers.length - 1; i < n; i += 1) {
+      for (let i = 0; i < numCircles; i += 1) {
         const from = transform(centers[i]);
         const to = transform(centers[i + 1]);
         drawArrow(from[0], from[1], to[0], to[1]);
@@ -356,8 +381,9 @@ Promise.all([
       ext.vertexAttribDivisorANGLE(lineVertexIdAttrib, 0);
       gl.bufferData(gl.ARRAY_BUFFER, lineVertexIds, gl.STATIC_DRAW);
 
+      const points = pointsByNumCircles[numCircles];
       if (firstTimeDone) {
-        const n = Math.min(Math.trunc(t / 16), points.length - 1);
+        const n = Math.min(Math.trunc(t / GRAPH_DELTA_TIME), points.length - 1);
         for (let i = 0; i < points.length; i += 1) {
           let toIndex = i + n - (points.length - 1);
           if (toIndex < 0) toIndex += points.length;
@@ -373,7 +399,7 @@ Promise.all([
           drawLine(from[0], from[1], to[0], to[1], 1);
         }
       } else {
-        const n = Math.min(Math.trunc(t / 16), points.length);
+        const n = Math.min(Math.trunc(t / GRAPH_DELTA_TIME), points.length);
         for (let i = 0; i < n; i += 1) {
           const from = transform(points[i]);
           let to;
@@ -390,8 +416,6 @@ Promise.all([
 
       window.requestAnimationFrame(render);
     };
-
-    window.requestAnimationFrame(render);
 
     canvas.onwheel = (ev) => {
       zoom = Math.min(Math.max(0.125, zoom + ev.deltaY * -0.01), 1000);
@@ -412,13 +436,27 @@ Promise.all([
       }
     });
 
+    numCirclesSlider.max = maxNumCircles;
+    numCirclesSlider.value = maxNumCircles;
+    numCirclesLabel.textContent = numCircles;
+
+    numCirclesSlider.oninput = () => {
+      numCircles = Math.max(1, Math.min(numCirclesSlider.value, maxNumCircles));
+      numCirclesSlider.value = numCircles;
+      numCirclesLabel.textContent = numCircles;
+    };
+
     pauseButton.onclick = () => { pausing = !pausing; };
 
-    seekBar.oninput = (ev) => {
+    seekBar.max = duration;
+
+    seekBar.oninput = () => {
       pausing = true;
       t = Math.max(0, Math.min(seekBar.value, duration));
       pausing = false;
     };
+
+    window.requestAnimationFrame(render);
 
     return () => {
       stopped = true;
