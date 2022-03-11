@@ -29,7 +29,7 @@ const clampDimensions = (width, height, maxSide) => {
   return [width * ratio, height * ratio];
 };
 
-const GRAPH_DELTA_TIME = 16;
+const GRAPH_DELTA_TIME = 64;
 
 let stopper;
 
@@ -261,7 +261,7 @@ Promise.all([
       return [p[0] * s + t[0] + translate[0], p[1] * s + t[1] + translate[1]];
     };
 
-    const pointsByNumCircles = [[]];
+    const pointsByNumCircles = [null];
     for (let i = 0; i < numCircles; i += 1) {
       pointsByNumCircles.push([]);
     }
@@ -451,9 +451,10 @@ Promise.all([
     seekBar.max = duration;
 
     seekBar.oninput = () => {
+      const oldPausing = pausing;
       pausing = true;
       t = Math.max(0, Math.min(seekBar.value, duration));
-      pausing = false;
+      pausing = oldPausing;
     };
 
     window.requestAnimationFrame(render);
