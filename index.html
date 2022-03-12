@@ -7,8 +7,11 @@
   <meta name="color-scheme" content="dark light">
   <title>Drawing with circles</title>
   <link href="bootstrap.min.css" rel="stylesheet">
+  <script src="lib/bootstrap.min.js"></script>
   <script src="lib/fft.js"></script>
+  <script src="lib/zfp_wasm/zfp_wasm.js"></script>
   <script src="lib/hammer.min.js"></script>
+  <script src="lib/base64js.min.js"></script>
   <style>
     body {
       background: black;
@@ -30,20 +33,28 @@
 
   <div id="control" class="container-fluid fixed-bottom" style="display: none">
     <div class="row mb-2">
-      <div class="col">
-        <button id="center" class="btn btn-light btn-sm">Center</button>
-      </div>
-      <div class="col">
-        <div class="form-check">
-          <input type="checkbox" id="follow" class="form-check-input">
-          <label for="follow" class="form-check-label">Follow the end point?</label>
+      <div class="col-sm">
+        <div class="row">
+          <div class="col flex-grow-0">
+            <button id="center" class="btn btn-light btn-sm">Center</button>
+          </div>
+          <div class="col flex-grow-1">
+            <div class="form-check">
+              <input type="checkbox" id="follow" class="form-check-input">
+              <label for="follow" class="form-check-label">Follow the end point?</label>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="col">
-        <label>Number of circle(s):</label><label id="numCircles" class="px-2"></label>
-      </div>
-      <div class="col">
-        <input type="range" id="numCirclesSlider" min="1" max="500" value="500" step="1" class="form-range">
+      <div class="col-sm">
+        <div class="row">
+          <div class="col">
+            <label>Number of circle(s):</label><label id="numCircles" class="px-2"></label>
+          </div>
+          <div class="col flex-grow-1">
+            <input type="range" id="numCirclesSlider" min="1" max="500" value="500" step="1" class="form-range">
+          </div>
+        </div>
       </div>
     </div>
     <div class="row align-items-center mb-2">
@@ -52,6 +63,22 @@
       </div>
       <div class="col flex-grow-1">
         <input type="range" id="time" min="0" value="0" step="1" class="form-range">
+      </div>
+      <div class="col flex-grow-0">
+        <button id="share" class="btn btn-primary btn-sm">
+          <div class="d-flex flex-nowrap align-items-center">
+            <span id="shareSpinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="display: none; margin-right: 0.5em"></span>
+            <span>Share</span>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+    <div id="shareToast" class="toast align-items-center text-white bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="toast-body">
+        Link copied!
       </div>
     </div>
   </div>
@@ -68,9 +95,9 @@
           <img height="50" src="examples/Fourier2.jpg"/>
         </button>
         <button class="btn btn-outline-light btn-sm">
-          <img height="50" src="examples/Homer-Simpson.webp"/>
+          <img height="50" src="examples/Homer-Simpson.png"/>
         </button>
-      </div>
+      </div> 
     </div>  
 
     <div id="desc" class="row mt-4">

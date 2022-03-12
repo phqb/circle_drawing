@@ -2,6 +2,7 @@ import { add, sub, exp, mul, abs } from './complex.js';
 import { fourierCycles } from './fourierCycles.js';
 import { makeProgram } from './webglutils.js';
 import init, { wasm_image_to_cycle } from './lib/oneliner/oneliner.js';
+import { compress2d, decompress2d } from './lib/zfp_wasm/zfp.js';
 
 const canvas = document.getElementById('canvas');
 const imageCanvas = document.getElementById('imageCanvas');
@@ -17,6 +18,7 @@ const numCirclesLabel = document.getElementById('numCircles');
 const numCirclesSlider = document.getElementById('numCirclesSlider');
 const description = document.getElementById('desc');
 const control = document.getElementById('control');
+const share = document.getElementById('share');
 
 const gresture = new Hammer.Manager(canvas, { recognizers: [[Hammer.Pan]] });
 
@@ -26,7 +28,7 @@ const alpha = (t) => Math.max(0.15, 3 * t * t * t - 2 * t * t);
 
 const clampDimensions = (width, height, maxSide) => {
   const ratio = maxSide / Math.max(width, height, maxSide);
-  return [width * ratio, height * ratio];
+  return [Math.trunc(width * ratio), Math.trunc(height * ratio)];
 };
 
 const GRAPH_DELTA_TIME = 64;
@@ -40,7 +42,8 @@ Promise.all([
   fetch('shaders/line_frag.glsl').then((r) => r.text()),
   fetch('shaders/arrow_vert.glsl').then((r) => r.text()),
   fetch('shaders/arrow_frag.glsl').then((r) => r.text()),
-]).then(async ([circleVert, circleFrag, lineVert, lineFrag, arrowVert, arrowFrag]) => {
+  ZfpModule(),
+]).then(async ([circleVert, circleFrag, lineVert, lineFrag, arrowVert, arrowFrag, zfp]) => {
   const [width, height] = [window.innerWidth, window.innerHeight];
 
   canvas.width = width;
@@ -59,6 +62,8 @@ Promise.all([
     if (e.target.tagName == "IMG") {
       imageElement.src = e.target.src;
       imageElement.onload = () => {
+        imageChooser.disabled = true;
+
         const [width, height] = clampDimensions(imageElement.width, imageElement.height, 1000);
 
         imageCanvas.width = width;
@@ -113,9 +118,28 @@ Promise.all([
         neg.push([xs[i], ys[i]]);
       }
 
-      examples.style.display = 'none';
-      description.style.display = 'none';
-      control.style.display = 'block';
+      share.onclick = () => {
+        const spinner = document.getElementById('shareSpinner');
+        spinner.style.display = 'block';
+        share.disabled = true;
+
+        const _shift = Math.min(shift, 200);
+        const _xs = xs.slice(shift - _shift);
+        const _ys = ys.slice(shift - _shift);
+        const [nx, ny] = [2 * _shift + 1, 2];
+        const nums = new Float32Array(nx * ny);
+        nums.set(_xs.slice(0, nx), 0);
+        nums.set(_ys.slice(0, nx), nx);
+
+        const compressed = compress2d(zfp, nums, nx, ny, 1e-3);
+        const encoded = encodeURIComponent(base64js.fromByteArray(compressed));
+        const link = location.protocol + '//' + location.host + location.pathname + '?nx='+ nx + '&d=' + encoded;
+        navigator.clipboard.writeText(link);
+
+        new bootstrap.Toast(document.getElementById('shareToast')).show();
+        spinner.style.display = 'none';
+        share.disabled = false;
+      }; 
 
       if (stopper) stopper();
       stopper = startDraw(zero, pos, neg);
@@ -125,6 +149,8 @@ Promise.all([
   if (imageChooser) {
     imageChooser.onchange = async () => {
       if (imageChooser.files && imageChooser.files.length == 1) {
+        imageChooser.disabled = true;
+
         if (window.createImageBitmap) {
           const image = await window.createImageBitmap(imageChooser.files[0]);
 
@@ -176,8 +202,36 @@ Promise.all([
     followEndPoint = followCheckbox.checked;
   };
 
+  {
+    const params = new URLSearchParams(new URL(window.location).search);
+    const nx = parseInt(params.get('nx'));
+    const data = params.get('d');
+
+    if (typeof(nx) == 'number' && typeof(data) == 'string') {
+      const compressed = base64js.toByteArray(decodeURIComponent(data));
+      const nums = decompress2d(zfp, compressed, nx, 2, 1e-3);
+      const [xs, ys] = [nums.slice(0, nx), nums.slice(nx)];
+      const shift = Math.trunc(nx / 2); 
+      const zero = [xs[shift], ys[shift]];
+      const pos = [];
+      const [_xs, _ys] = [xs.slice(shift + 1), ys.slice(shift + 1)];
+      for (let i = 0; i < shift; i += 1) pos.push([_xs[i], _ys[i]]);
+      const neg = [];
+      for (let i = shift - 1; i >= 0; i -= 1) neg.push([xs[i], ys[i]]);
+
+      if (stopper) stopper();
+      stopper = startDraw(zero, pos, neg); 
+    }
+  }
+
   function startDraw(zero, pos, neg) {
     if (pos.length != neg.length) throw 'pos.length must be equal neg.length';
+
+    imageChooser.disabled = false;
+    examples.style.display = 'none';
+    description.style.display = 'none';
+    control.style.display = 'block';
+
     const maxNumCircles = 2 * pos.length;
 
     const circleNumSides = 64;
@@ -266,6 +320,7 @@ Promise.all([
       pointsByNumCircles.push([]);
     }
 
+    const _time = performance.now();
     const length = Math.trunc(duration / GRAPH_DELTA_TIME) + 1;
     for (let i = 0; i < length; i += 1) {
       const t = i * GRAPH_DELTA_TIME;
@@ -278,6 +333,7 @@ Promise.all([
         pointsByNumCircles[2 * c].push(r);
       }
     }
+    console.log('took', performance.now() - _time);
 
     const render = (timestamp) => {
       if (stopped) return;
