@@ -6,7 +6,7 @@ import { compress2d, decompress2d } from './lib/zfp_wasm/zfp.js';
 
 const canvas = document.getElementById('canvas');
 const imageCanvas = document.getElementById('imageCanvas');
-const imageChooser = document.getElementById('image');
+const inputFileChooser = document.getElementById('image');
 const imageElement = document.getElementById('imageElement');
 const followCheckbox = document.getElementById('follow');
 followCheckbox.checked = false;
@@ -19,6 +19,7 @@ const numCirclesSlider = document.getElementById('numCirclesSlider');
 const description = document.getElementById('desc');
 const control = document.getElementById('control');
 const share = document.getElementById('share');
+const exportBtn = document.getElementById('export');
 
 const gresture = new Hammer.Manager(canvas, { recognizers: [[Hammer.Pan]] });
 
@@ -62,7 +63,7 @@ Promise.all([
     if (e.target.tagName == "IMG") {
       imageElement.src = e.target.src;
       imageElement.onload = () => {
-        imageChooser.disabled = true;
+        inputFileChooser.disabled = true;
 
         const [width, height] = clampDimensions(imageElement.width, imageElement.height, 1000);
 
@@ -79,6 +80,11 @@ Promise.all([
   };
 
   const processImageThenDraw = (data, width, height) => {
+    const [xs, ys] = imageToCoffs(data, width, height);
+    if (xs && ys) prepareDraw(xs, ys);
+  };
+
+  const imageToCoffs = (data, width, height) => {
     // convert image to grayscale
     const input = new Uint8Array(height * width);
     for (let i = 0; i < data.length; i += 4) {
@@ -107,91 +113,131 @@ Promise.all([
 
     if (xs.length > 0) {
       const shift = fourierCycles(xs, ys);
-
-      const zero = [xs[shift], ys[shift]];
-      const pos = [];
-      for (let i = shift + 1; i < 2 * shift + 1; i += 1) {
-        pos.push([xs[i], ys[i]]);
-      }
-      const neg = [];
-      for (let i = shift - 1; i >= 0; i -= 1) {
-        neg.push([xs[i], ys[i]]);
-      }
-
-      share.onclick = () => {
-        const spinner = document.getElementById('shareSpinner');
-        spinner.style.display = 'block';
-        share.disabled = true;
-
-        const _shift = Math.min(shift, 200);
-        const _xs = xs.slice(shift - _shift);
-        const _ys = ys.slice(shift - _shift);
-        const [nx, ny] = [2 * _shift + 1, 2];
-        const nums = new Float32Array(nx * ny);
-        nums.set(_xs.slice(0, nx), 0);
-        nums.set(_ys.slice(0, nx), nx);
-
-        const compressed = compress2d(zfp, nums, nx, ny, 1e-3);
-        const encoded = encodeURIComponent(base64js.fromByteArray(compressed));
-        const link = location.protocol + '//' + location.host + location.pathname + '?nx='+ nx + '&d=' + encoded;
-        navigator.clipboard.writeText(link);
-
-        new bootstrap.Toast(document.getElementById('shareToast')).show();
-        spinner.style.display = 'none';
-        share.disabled = false;
-      }; 
-
-      if (stopper) stopper();
-      stopper = startDraw(zero, pos, neg);
-    } 
+      return [xs.slice(0, 2 * shift + 1), ys.slice(0, 2 * shift + 1)];
+    }
   };
 
-  if (imageChooser) {
-    imageChooser.onchange = async () => {
-      if (imageChooser.files && imageChooser.files.length == 1) {
-        imageChooser.disabled = true;
+  const prepareDraw = (xs, ys) => {
+    if (xs.length != ys.length) return;
+    if (xs.length % 2 == 0) return;
 
-        if (window.createImageBitmap) {
-          const image = await window.createImageBitmap(imageChooser.files[0]);
+    const exported = [];
+    for (let i = 0; i < xs.length; i += 1) exported.push([xs[i], ys[i]]);
+    const encodedData = encodeURIComponent(JSON.stringify(exported, null, 2));
+    exportBtn.setAttribute('href', 'data:text/json;charset=utf-8,' + encodedData);
+    exportBtn.setAttribute('download', 'coffs.json');
 
-          if (image.height < 50 || image.width < 50) {
-            alert(`The image is too small (${image.width}x${image.height})!`);
-            return;
-          }
+    const shift = xs.length >> 1;
 
-          const [width, height] = clampDimensions(image.width, image.height, 1000);
+    const zero = [xs[shift], ys[shift]];
+    const pos = [];
+    for (let i = shift + 1; i < 2 * shift + 1; i += 1) {
+      pos.push([xs[i], ys[i]]);
+    }
+    const neg = [];
+    for (let i = shift - 1; i >= 0; i -= 1) {
+      neg.push([xs[i], ys[i]]);
+    }
 
-          imageCanvas.width = width;
-          imageCanvas.height = height;
+    share.onclick = () => {
+      const spinner = document.getElementById('shareSpinner');
+      spinner.style.display = 'block';
+      share.disabled = true;
 
-          const imageCtx = imageCanvas.getContext('2d');
-          imageCtx.drawImage(image, 0, 0, image.width, image.height, 0, 0, width, height);
-          const data = imageCtx.getImageData(0, 0, width, height).data;
+      const _shift = Math.min(shift, 200);
+      const _xs = xs.slice(shift - _shift);
+      const _ys = ys.slice(shift - _shift);
+      const [nx, ny] = [2 * _shift + 1, 2];
+      const nums = new Float32Array(nx * ny);
+      nums.set(_xs.slice(0, nx), 0);
+      nums.set(_ys.slice(0, nx), nx);
 
-          processImageThenDraw(data, width, height);
-        } else {
-          const imageReader = new FileReader();
-          imageReader.onload = (e) => {
-            imageElement.src = e.target.result;
-            imageElement.onload = () => {
-              if (imageElement.height < 50 || imageElement.width < 50) {
-                alert(`The image is too small (${imageElement.width}x${imageElement.height})!`);
-                return;
+      const compressed = compress2d(zfp, nums, nx, ny, 1e-3);
+      const encoded = encodeURIComponent(base64js.fromByteArray(compressed));
+      const link = location.protocol + '//' + location.host + location.pathname + '?nx=' + nx + '&d=' + encoded;
+      navigator.clipboard.writeText(link);
+
+      new bootstrap.Toast(document.getElementById('shareToast')).show();
+      spinner.style.display = 'none';
+      share.disabled = false;
+    }; 
+
+    if (stopper) stopper();
+    stopper = startDraw(zero, pos, neg);
+  };
+
+  if (inputFileChooser) {
+    inputFileChooser.onchange = async () => {
+      if (inputFileChooser.files && inputFileChooser.files.length == 1) {
+        inputFileChooser.disabled = true;
+
+        const inputFile = inputFileChooser.files[0];
+        if (inputFile.type.toLowerCase() == 'application/json') {
+          const jsonReader = new FileReader();
+          jsonReader.onload = (e) => {
+            const data = JSON.parse(e.target.result);
+            if (Array.isArray(data)) {
+              let valid = true;
+              for (const z of data) {
+                if (!Array.isArray(z) || z.length != 2 || typeof (z[0]) != 'number' || typeof (z[1]) != 'number') {
+                  valid = false;
+                  break;
+                }
               }
-
-              const [width, height] = clampDimensions(imageElement.width, imageElement.height, 1000);
-
-              imageCanvas.width = width;
-              imageCanvas.height = height;
-
-              const imageCtx = imageCanvas.getContext('2d');
-              imageCtx.drawImage(imageElement, 0, 0, imageElement.width, imageElement.height, 0, 0, width, height);
-              const data = imageCtx.getImageData(0, 0, width, height).data;
-
-              processImageThenDraw(data, width, height);
-            };
+              if (valid) {
+                const xs = [], ys = [];
+                for (const z of data) {
+                  xs.push(z[0]);
+                  ys.push(z[1]);
+                }
+                prepareDraw(xs, ys);
+              }
+            }
           };
-          imageReader.readAsDataURL(imageChooser.files[0]);
+          jsonReader.readAsText(inputFile);
+        } else {
+          if (window.createImageBitmap) {
+            const image = await window.createImageBitmap(inputFile);
+
+            if (image.height < 50 || image.width < 50) {
+              alert(`The image is too small (${image.width}x${image.height})!`);
+              return;
+            }
+
+            const [width, height] = clampDimensions(image.width, image.height, 1000);
+
+            imageCanvas.width = width;
+            imageCanvas.height = height;
+
+            const imageCtx = imageCanvas.getContext('2d');
+            imageCtx.drawImage(image, 0, 0, image.width, image.height, 0, 0, width, height);
+            const data = imageCtx.getImageData(0, 0, width, height).data;
+
+            processImageThenDraw(data, width, height);
+          } else {
+            const imageReader = new FileReader();
+            imageReader.onload = (e) => {
+              imageElement.src = e.target.result;
+              imageElement.onload = () => {
+                if (imageElement.height < 50 || imageElement.width < 50) {
+                  alert(`The image is too small (${imageElement.width}x${imageElement.height})!`);
+                  return;
+                }
+
+                const [width, height] = clampDimensions(imageElement.width, imageElement.height, 1000);
+
+                imageCanvas.width = width;
+                imageCanvas.height = height;
+
+                const imageCtx = imageCanvas.getContext('2d');
+                imageCtx.drawImage(imageElement, 0, 0, imageElement.width, imageElement.height, 0, 0, width, height);
+                const data = imageCtx.getImageData(0, 0, width, height).data;
+
+                processImageThenDraw(data, width, height);
+              };
+            };
+            imageReader.readAsDataURL(inputFile);
+          }
         }
       }
     };
@@ -207,11 +253,11 @@ Promise.all([
     const nx = parseInt(params.get('nx'));
     const data = params.get('d');
 
-    if (typeof(nx) == 'number' && typeof(data) == 'string') {
+    if (typeof (nx) == 'number' && typeof (data) == 'string') {
       const compressed = base64js.toByteArray(decodeURIComponent(data));
       const nums = decompress2d(zfp, compressed, nx, 2, 1e-3);
       const [xs, ys] = [nums.slice(0, nx), nums.slice(nx)];
-      const shift = Math.trunc(nx / 2); 
+      const shift = Math.trunc(nx / 2);
       const zero = [xs[shift], ys[shift]];
       const pos = [];
       const [_xs, _ys] = [xs.slice(shift + 1), ys.slice(shift + 1)];
@@ -220,14 +266,14 @@ Promise.all([
       for (let i = shift - 1; i >= 0; i -= 1) neg.push([xs[i], ys[i]]);
 
       if (stopper) stopper();
-      stopper = startDraw(zero, pos, neg); 
+      stopper = startDraw(zero, pos, neg);
     }
   }
 
   function startDraw(zero, pos, neg) {
     if (pos.length != neg.length) throw 'pos.length must be equal neg.length';
 
-    imageChooser.disabled = false;
+    inputFileChooser.disabled = false;
     examples.style.display = 'none';
     description.style.display = 'none';
     control.style.display = 'block';
