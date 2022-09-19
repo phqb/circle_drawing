@@ -250,10 +250,33 @@ Promise.all([
 
   {
     const params = new URLSearchParams(new URL(window.location).search);
+    const url = params.get('url');
     const nx = parseInt(params.get('nx'));
     const data = params.get('d');
 
-    if (typeof (nx) == 'number' && typeof (data) == 'string') {
+    if (typeof (url) == 'string') {
+      // https://developer.mozilla.org/en-US/docs/Web/HTML/CORS_enabled_image
+      const downloadedImg = new Image();
+      downloadedImg.crossOrigin = "Anonymous";
+      downloadedImg.addEventListener("load", () => {
+        if (downloadedImg.height < 50 || downloadedImg.width < 50) {
+          alert(`The image is too small (${downloadedImg.width}x${downloadedImg.height})!`);
+          return;
+        }
+
+        const [width, height] = clampDimensions(downloadedImg.width, downloadedImg.height, 1000);
+
+        imageCanvas.width = width;
+        imageCanvas.height = height;
+
+        const imageCtx = imageCanvas.getContext('2d');
+        imageCtx.drawImage(downloadedImg, 0, 0, downloadedImg.width, downloadedImg.height, 0, 0, width, height);
+        const data = imageCtx.getImageData(0, 0, width, height).data;
+
+        processImageThenDraw(data, width, height); 
+      }, false);
+      downloadedImg.src = url;
+    } else if (typeof (nx) == 'number' && typeof (data) == 'string') {
       const compressed = base64js.toByteArray(decodeURIComponent(data));
       const nums = decompress2d(zfp, compressed, nx, 2, 1e-3);
       const [xs, ys] = [nums.slice(0, nx), nums.slice(nx)];
